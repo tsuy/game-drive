@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f4d2b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Trail Navi</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="map"></div>
+
+  <header id="status" class="status idle">
+    <div class="status-main" id="statusText">GPS aus</div>
+    <div class="status-sub" id="statusSub">Route: –</div>
+  </header>
+
+  <nav class="controls">
+    <button id="btnGps" class="primary">GPS starten</button>
+    <button id="btnFollow" aria-pressed="true" title="Karte folgt Position">Folgen</button>
+    <button id="btnPanel">Offline-Karten</button>
+  </nav>
+
+  <section id="panel" class="panel" hidden>
+    <h2>Offline-Karten</h2>
+    <p class="hint">Lädt Kartenkacheln in einem Korridor entlang der Strecke auf das Gerät. Am besten im WLAN ausführen.</p>
+
+    <label>Kartentyp
+      <select id="dlLayer"></select>
+    </label>
+    <label>Zoomstufen
+      <select id="dlZoom">
+        <option value="12-16">12–16 (Übersicht, klein)</option>
+        <option value="12-17" selected>12–17 (empfohlen)</option>
+        <option value="12-18">12–18 (Detail, gross)</option>
+      </select>
+    </label>
+    <label>Korridor-Breite
+      <select id="dlBuffer">
+        <option value="200">± 200 m</option>
+        <option value="400" selected>± 400 m</option>
+        <option value="1000">± 1 km</option>
+      </select>
+    </label>
+
+    <p id="dlEstimate" class="mono">–</p>
+    <progress id="dlProgress" max="1" value="0" hidden></progress>
+    <p id="dlState" class="mono"></p>
+
+    <div class="row">
+      <button id="btnDownload" class="primary">Herunterladen</button>
+      <button id="btnAbort" hidden>Abbrechen</button>
+    </div>
+
+    <h2>Einstellungen</h2>
+    <label>Toleranz „auf Strecke“
+      <select id="tolerance">
+        <option value="15">15 m</option>
+        <option value="25" selected>25 m</option>
+        <option value="40">40 m</option>
+        <option value="75">75 m</option>
+      </select>
+    </label>
+    <label>Andere Route laden (GPX)
+      <input type="file" id="gpxFile" accept=".gpx,application/gpx+xml">
+    </label>
+
+    <p id="storage" class="mono"></p>
+    <div class="row">
+      <button id="btnSim">Simulation starten</button>
+      <button id="btnClear" class="danger">Offline-Karten löschen</button>
+    </div>
+    <div class="row">
+      <button id="btnClose">Schliessen</button>
+    </div>
+  </section>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
