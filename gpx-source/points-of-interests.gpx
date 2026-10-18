@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx creator="https://gpx.studio" version="1.1" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd http://www.garmin.com/xmlschemas/GpxExtensions/v3 http://www.garmin.com/xmlschemas/GpxExtensionsv3.xsd http://www.garmin.com/xmlschemas/TrackPointExtension/v1 http://www.garmin.com/xmlschemas/TrackPointExtensionv1.xsd http://www.garmin.com/xmlschemas/PowerExtension/v1 http://www.garmin.com/xmlschemas/PowerExtensionv1.xsd http://www.topografix.com/GPX/gpx_style/0/2 http://www.topografix.com/GPX/gpx_style/0/2/gpx_style.xsd" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1" xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3" xmlns:gpxpx="http://www.garmin.com/xmlschemas/PowerExtension/v1" xmlns:gpx_style="http://www.topografix.com/GPX/gpx_style/0/2">
+  <metadata>
+    <name>points-of-interests</name>
+    <author>
+      <name>gpx.studio</name>
+      <link href="https://gpx.studio"/>
+    </author>
+  </metadata>
+  <wpt lat="-22.088259" lon="28.998765">
+    <ele>595.2397472884956</ele>
+    <name>Dopotta Lodge</name>
+  </wpt>
+  <wpt lat="-22.0452163834765" lon="28.975317385297643">
+    <ele>611.8772979866702</ele>
+    <name>Forest Loop</name>
+  </wpt>
+  <wpt lat="-22.131027058356707" lon="28.954721825419938">
+    <ele>649.5209984079657</ele>
+    <name>Muwane View Point</name>
+  </wpt>
+  <wpt lat="-22.135612624859235" lon="28.936992628911753">
+    <ele>663.7591964085586</ele>
+    <name>Motloutse View Point</name>
+  </wpt>
+  <wpt lat="-22.11134630934265" lon="28.973961773900527">
+    <ele>630.2803917486453</ele>
+    <name>Big Boabab</name>
+  </wpt>
+  <wpt lat="-22.108964340749267" lon="28.980794394748784">
+    <ele>626.5</ele>
+    <name>Laxtons Hide</name>
+  </wpt>
+  <wpt lat="-22.094122163475276" lon="29.01507808329194">
+    <ele>596.5294555250418</ele>
+    <name>Swiss Peak Hill</name>
+  </wpt>
+  <wpt lat="-22.10380991284869" lon="28.9969514076314">
+    <ele>616.5</ele>
+    <name>Jackal Pan</name>
+  </wpt>
+  <wpt lat="-22.090139" lon="28.988553">
+    <ele>618.7804181333631</ele>
+    <name>Tommy&apos;s View Point</name>
+  </wpt>
+  <wpt lat="-22.089226066338725" lon="28.96097474050228">
+    <ele>627.2984419743375</ele>
+    <name>Madikolobe Hide</name>
+  </wpt>
+  <wpt lat="-22.0439256958977" lon="29.02900215658795">
+    <ele>626.020103659138</ele>
+    <name>Jwala Lodge</name>
+  </wpt>
+  <wpt lat="-22.213927" lon="29.094497">
+    <ele>539.5808011325635</ele>
+    <name>Tuli Lodge</name>
+  </wpt>
+</gpx>
