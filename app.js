@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 const TILE_CACHE = 'tiles-v1';
-const DEFAULT_ROUTE = 'route.gpx';
+const NETWORK_URL = 'data/network.json'; // erzeugt von tools/build_network.py
 const AVG_TILE_KB = 20; // grobe Schätzung für Satellitenkacheln (JPEG)
 const DOWNLOAD_CONCURRENCY = 6;
 
@@ -86,66 +86,151 @@ function lat2tile(lat, z) {
   return Math.floor(((1 - Math.asinh(Math.tan(r)) / Math.PI) / 2) * 2 ** z);
 }
 
+function bearing(a, b) {
+  const y = Math.sin(toRad(b.lon - a.lon)) * Math.cos(toRad(b.lat));
+  const x = Math.cos(toRad(a.lat)) * Math.sin(toRad(b.lat)) -
+    Math.sin(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.cos(toRad(b.lon - a.lon));
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+const COMPASS = ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'];
+const compass = (deg) => COMPASS[Math.round(deg / 45) % 8];
+
 // ---------------------------------------------------------------------------
-// Route
+// Wegnetz (alle Teilstrecken) & POIs
 // ---------------------------------------------------------------------------
 
-const route = {
-  name: '',
-  pts: [],     // [{lat, lon}]
-  cum: [],     // kumulierte Distanz in m bis Punkt i
+// Gut sichtbar auf Satellitenbildern, untereinander unterscheidbar
+const GROUP_COLORS = ['#ff3d00', '#ffd600', '#00e5ff', '#ff4081', '#76ff03', '#e040fb', '#ffab40', '#40c4ff', '#ffffff'];
+
+const network = {
+  tracks: [],   // [{id, group, label, pts:[{lat,lon}], cum:[m], length}]
+  groups: {},   // group -> {label, color, layer, visible, length}
+  pois: [],     // [{name, lat, lon, ele?, desc?}]
+  poiLayer: null,
   length: 0,
-  line: null,  // Leaflet-Polyline
 };
+let layerControl = null;
 
-function parseGpx(text) {
-  const doc = new DOMParser().parseFromString(text, 'application/xml');
-  if (doc.querySelector('parsererror')) throw new Error('Ungültige GPX-Datei');
-  let nodes = doc.getElementsByTagName('trkpt');
-  if (!nodes.length) nodes = doc.getElementsByTagName('rtept');
-  const pts = Array.from(nodes, (n) => ({
-    lat: parseFloat(n.getAttribute('lat')),
-    lon: parseFloat(n.getAttribute('lon')),
-  })).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
-  if (pts.length < 2) throw new Error('GPX enthält keine Trackpunkte');
-  const nameEl = doc.querySelector('trk > name, rte > name, metadata > name');
-  return { name: nameEl ? nameEl.textContent.trim() : 'Route', pts };
+function prepTrack(t) {
+  const pts = t.coords.map(([lat, lon]) => ({ lat, lon }));
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + haversine(pts[i - 1], pts[i]));
+  return { id: t.id, group: t.group, label: t.label, pts, cum, length: cum[cum.length - 1] };
 }
 
-function setRoute({ name, pts }) {
-  route.name = name;
-  route.pts = pts;
-  route.cum = [0];
-  for (let i = 1; i < pts.length; i++) {
-    route.cum.push(route.cum[i - 1] + haversine(pts[i - 1], pts[i]));
+// Eigene GPX-Datei (Upload) ins gleiche Format wie network.json bringen
+function parseGpx(text, fileName) {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  if (doc.querySelector('parsererror')) throw new Error('Ungültige GPX-Datei');
+  const coordsOf = (nodes) => Array.from(nodes, (n) => [parseFloat(n.getAttribute('lat')), parseFloat(n.getAttribute('lon'))])
+    .filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b));
+  const segs = [...doc.getElementsByTagName('trkseg'), ...doc.getElementsByTagName('rte')];
+  const tracks = segs
+    .map((s, i) => ({ id: `${fileName}-${i}`, group: 'eigene', label: 'Eigene GPX', coords: coordsOf(s.querySelectorAll('trkpt, rtept')) }))
+    .filter((t) => t.coords.length >= 2);
+  const pois = Array.from(doc.getElementsByTagName('wpt'), (w) => ({
+    name: w.getElementsByTagName('name')[0]?.textContent.trim() || 'POI',
+    lat: parseFloat(w.getAttribute('lat')),
+    lon: parseFloat(w.getAttribute('lon')),
+  }));
+  if (!tracks.length && !pois.length) throw new Error('GPX enthält weder Strecken noch Wegpunkte');
+  return { tracks, pois };
+}
+
+function setNetwork({ tracks, pois }) {
+  // Control zuerst entfernen: sonst feuert das Entfernen der Layer
+  // 'overlayremove' und würde alle Gruppen als ausgeblendet speichern.
+  layerControl?.remove();
+  for (const g of Object.values(network.groups)) g.layer.remove();
+  network.poiLayer?.remove();
+
+  network.tracks = tracks.map(prepTrack);
+  network.length = network.tracks.reduce((s, t) => s + t.length, 0);
+  network.groups = {};
+  const hidden = new Set(JSON.parse(localStorage.getItem('hiddenGroups') || '[]'));
+
+  for (const t of network.tracks) {
+    let g = network.groups[t.group];
+    if (!g) {
+      const color = GROUP_COLORS[Object.keys(network.groups).length % GROUP_COLORS.length];
+      g = network.groups[t.group] = { label: t.label, color, layer: L.layerGroup(), visible: !hidden.has(t.group), length: 0 };
+    }
+    g.length += t.length;
+    const latlngs = t.pts.map((p) => [p.lat, p.lon]);
+    // Dunkler Rand unter der farbigen Linie: auf Satellitenbildern besser sichtbar
+    L.polyline(latlngs, { color: '#000', weight: 7, opacity: 0.45, interactive: false }).addTo(g.layer);
+    L.polyline(latlngs, { color: g.color, weight: 4 })
+      .bindTooltip(`${t.label} · ${fmtKm(t.length)}`, { sticky: true })
+      .addTo(g.layer);
   }
-  route.length = route.cum[route.cum.length - 1];
 
-  if (route.line) route.line.remove();
-  const latlngs = pts.map((p) => [p.lat, p.lon]);
-  // Doppelte Linie (weisser Rand) ist auf Satellitenbildern besser sichtbar
-  route.line = L.layerGroup([
-    L.polyline(latlngs, { color: '#fff', weight: 8, opacity: 0.8 }),
-    L.polyline(latlngs, { color: '#ff3d00', weight: 4 }),
-  ]).addTo(map);
-  L.circleMarker(latlngs[0], { radius: 7, color: '#fff', fillColor: '#1f8a3b', fillOpacity: 1 })
-    .bindTooltip('Start').addTo(route.line);
+  network.pois = pois;
+  network.poiLayer = L.layerGroup(pois.map(poiMarker));
 
-  map.fitBounds(L.latLngBounds(latlngs), { padding: [40, 40] });
+  // Ebenen-Menü: Kartentyp + jede Streckengruppe + POIs einzeln schaltbar
+  const overlays = {};
+  for (const [key, g] of Object.entries(network.groups)) {
+    g.layer.options.groupKey = key;
+    overlays[`<span class="swatch" style="background:${g.color}"></span>${g.label} <small>${fmtKm(g.length)}</small>`] = g.layer;
+    if (g.visible) g.layer.addTo(map);
+  }
+  overlays['📍 POIs'] = network.poiLayer;
+  if (localStorage.getItem('poisHidden') !== '1') network.poiLayer.addTo(map);
+  layerControl = L.control.layers(baseLayers, overlays, { position: 'topright' }).addTo(map);
+
+  const all = network.tracks.flatMap((t) => t.pts.map((p) => [p.lat, p.lon]))
+    .concat(pois.map((p) => [p.lat, p.lon]));
+  if (all.length) map.fitBounds(L.latLngBounds(all), { padding: [30, 30] });
   updateStatusIdle();
   updateEstimate();
 }
 
-// Nächster Punkt auf der Route: Abstand + zurückgelegte Distanz entlang der Route.
-// Brute force über alle Segmente (~2000) ist pro GPS-Fix unproblematisch.
-function nearestOnRoute(p) {
-  let best = { dist: Infinity, along: 0 };
-  const pts = route.pts;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const { dist, t } = pointSegment(p, pts[i], pts[i + 1]);
-    if (dist < best.dist) {
-      best = { dist, along: route.cum[i] + t * (route.cum[i + 1] - route.cum[i]) };
+function poiMarker(poi) {
+  const m = L.marker([poi.lat, poi.lon], {
+    icon: L.divIcon({ className: 'poi', html: '<div class="poi-pin"></div>', iconSize: [26, 26], iconAnchor: [13, 26], popupAnchor: [0, -24] }),
+    title: poi.name,
+  });
+  // Permanente Beschriftung; per CSS erst ab Zoom 14 sichtbar (siehe zoomend)
+  m.bindTooltip(poi.name, { permanent: true, direction: 'right', offset: [10, -14], className: 'poi-label' });
+  m.bindPopup(() => {
+    const lines = [`<b>${escapeHtml(poi.name)}</b>`];
+    if (poi.desc) lines.push(escapeHtml(poi.desc));
+    if (poi.ele != null) lines.push(`Höhe ${poi.ele} m`);
+    const me = tracking.marker?.getLatLng();
+    if (me) {
+      const from = { lat: me.lat, lon: me.lng };
+      lines.push(`${fmtKm(haversine(from, poi))} Luftlinie · ${compass(bearing(from, poi))}`);
     }
+    lines.push(`<span class="mono">${poi.lat.toFixed(5)}, ${poi.lon.toFixed(5)}</span>`);
+    return lines.join('<br>');
+  });
+  return m;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+const visibleTracks = () => network.tracks.filter((t) => network.groups[t.group].visible);
+
+// Nächste Stelle im (sichtbaren) Wegnetz. Brute force über ~7000 Segmente
+// dauert < 1 ms und ist pro GPS-Fix (1/s) unproblematisch.
+function nearestOnNetwork(p) {
+  let best = { dist: Infinity, track: null };
+  for (const t of visibleTracks()) {
+    for (let i = 0; i < t.pts.length - 1; i++) {
+      const { dist } = pointSegment(p, t.pts[i], t.pts[i + 1]);
+      if (dist < best.dist) best = { dist, track: t };
+    }
+  }
+  return best;
+}
+
+function nearestPoi(p) {
+  let best = null;
+  for (const poi of network.pois) {
+    const d = haversine(p, poi);
+    if (!best || d < best.dist) best = { poi, dist: d };
   }
   return best;
 }
@@ -172,13 +257,35 @@ const savedLayer = localStorage.getItem('layer');
 const initialLayer = Object.values(baseLayers).find((l) => l.options.key === savedLayer) ||
   baseLayers[LAYERS.esri.name];
 initialLayer.addTo(map);
-L.control.layers(baseLayers, null, { position: 'topright' }).addTo(map);
 map.on('baselayerchange', (e) => {
   localStorage.setItem('layer', e.layer.options.key);
   $('dlLayer').value = e.layer.options.key;
   updateEstimate();
 });
-map.setView([-22.07, 28.98], 13);
+
+// Sichtbarkeit der Streckengruppen/POIs merken; ausgeblendete Gruppen zählen
+// auch nicht für "auf Strecke" und den Offline-Download.
+function onOverlayToggle(e, visible) {
+  if (e.layer === network.poiLayer) {
+    localStorage.setItem('poisHidden', visible ? '0' : '1');
+    return;
+  }
+  const g = network.groups[e.layer.options.groupKey];
+  if (!g) return;
+  g.visible = visible;
+  const hidden = Object.entries(network.groups).filter(([, x]) => !x.visible).map(([k]) => k);
+  localStorage.setItem('hiddenGroups', JSON.stringify(hidden));
+  updateStatusIdle();
+  updateEstimate();
+}
+map.on('overlayadd', (e) => onOverlayToggle(e, true));
+map.on('overlayremove', (e) => onOverlayToggle(e, false));
+
+// POI-Namen erst ab Zoom 14 einblenden, sonst überlagern sie sich
+const updateLabelVisibility = () => map.getContainer().classList.toggle('hide-poi-labels', map.getZoom() < 14);
+map.on('zoomend', updateLabelVisibility);
+map.setView([-22.1, 29.0], 12);
+updateLabelVisibility();
 
 // ---------------------------------------------------------------------------
 // UI-Helfer
@@ -191,7 +298,10 @@ function setStatus(cls, main, sub) {
 }
 
 function updateStatusIdle() {
-  setStatus('idle', 'GPS aus', `${route.name} · ${fmtKm(route.length)}`);
+  if (tracking.watchId !== null || tracking.simTimer) return;
+  const vis = visibleTracks();
+  const km = vis.reduce((s, t) => s + t.length, 0);
+  setStatus('idle', 'GPS aus', `${vis.length} Strecken · ${fmtKm(km)} · ${network.pois.length} POIs`);
 }
 
 // ---------------------------------------------------------------------------
@@ -230,8 +340,13 @@ function onPosition(lat, lon, accuracy) {
   }
 
   const tol = Number($('tolerance').value);
-  const { dist, along } = nearestOnRoute(p);
-  const progress = `${fmtKm(along)} / ${fmtKm(route.length)} · ±${Math.round(accuracy)} m`;
+  const { dist, track } = nearestOnNetwork(p);
+  const near = nearestPoi(p);
+  const parts = [];
+  if (track) parts.push(track.label);
+  if (near) parts.push(`${near.poi.name} ${fmtKm(near.dist)} ${compass(bearing(p, near.poi))}`);
+  parts.push(`±${Math.round(accuracy)} m`);
+  const progress = parts.join(' · ');
 
   if (dist > tol) tracking.offCount++;
   else tracking.offCount = 0;
@@ -276,7 +391,7 @@ function startGps() {
     { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 },
   );
   requestWakeLock();
-  setStatus('weak', 'Suche GPS…', route.name);
+  setStatus('weak', 'Suche GPS…', '');
   $('btnGps').textContent = 'GPS stoppen';
 }
 
@@ -298,22 +413,23 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// Simulation zum Testen am Desktop: fährt die Route ab und weicht zwischen
-// 30 % und 35 % der Strecke seitlich ab, damit der "Abseits"-Zustand sichtbar wird.
+// Simulation zum Testen am Desktop: fährt die längste sichtbare Teilstrecke ab
+// und weicht zwischen 30 % und 35 % seitlich ab, damit "Abseits" sichtbar wird.
 function startSimulation() {
   stopGps();
+  const sim = visibleTracks().reduce((a, b) => (b.length > (a?.length ?? 0) ? b : a), null);
+  if (!sim) return;
   let along = 0;
   const step = 25; // m pro Tick
   tracking.simTimer = setInterval(() => {
     along += step;
-    if (along > route.length) { stopSimulation(); return; }
-    let i = route.cum.findIndex((c) => c >= along);
-    i = Math.max(1, i);
-    const a = route.pts[i - 1], b = route.pts[i];
-    const t = (along - route.cum[i - 1]) / (route.cum[i] - route.cum[i - 1] || 1);
+    if (along > sim.length) { stopSimulation(); return; }
+    const i = Math.max(1, sim.cum.findIndex((c) => c >= along));
+    const a = sim.pts[i - 1], b = sim.pts[i];
+    const t = (along - sim.cum[i - 1]) / (sim.cum[i] - sim.cum[i - 1] || 1);
     let lat = a.lat + t * (b.lat - a.lat);
-    let lon = a.lon + t * (b.lon - a.lon);
-    const frac = along / route.length;
+    const lon = a.lon + t * (b.lon - a.lon);
+    const frac = along / sim.length;
     if (frac > 0.3 && frac < 0.35) lat += 0.0009; // ~100 m nach Norden
     onPosition(lat, lon, 8);
   }, 500);
@@ -324,30 +440,32 @@ function stopSimulation() {
   clearInterval(tracking.simTimer);
   tracking.simTimer = null;
   $('btnSim').textContent = 'Simulation starten';
+  updateStatusIdle();
 }
 
 // ---------------------------------------------------------------------------
 // Offline-Download der Kacheln
 // ---------------------------------------------------------------------------
 
-// Alle Kacheln in einem Korridor von ±bufferM um die Route. Die Route wird
-// verdichtet, sodass zwischen zwei Stützpunkten nie mehr als bufferM/2 liegt,
-// sonst könnten auf langen, geraden Segmenten Lücken entstehen.
+// Alle Kacheln in einem Korridor von ±bufferM um alle sichtbaren Strecken und
+// POIs. Die Strecken werden verdichtet, sodass zwischen zwei Stützpunkten nie
+// mehr als bufferM/2 liegt, sonst entstehen auf langen Segmenten Lücken.
+// Überlappende Strecken kosten nichts extra: Kacheln werden per Set dedupliziert.
 function corridorTiles(zMin, zMax, bufferM) {
-  const samples = [];
-  const pts = route.pts;
+  const samples = [...network.pois];
   const maxGap = Math.max(20, bufferM / 2);
-  for (let i = 0; i < pts.length; i++) {
-    samples.push(pts[i]);
-    if (i === pts.length - 1) break;
-    const d = route.cum[i + 1] - route.cum[i];
-    const n = Math.floor(d / maxGap);
-    for (let k = 1; k <= n; k++) {
-      const t = k / (n + 1);
-      samples.push({
-        lat: pts[i].lat + t * (pts[i + 1].lat - pts[i].lat),
-        lon: pts[i].lon + t * (pts[i + 1].lon - pts[i].lon),
-      });
+  for (const { pts, cum } of visibleTracks()) {
+    for (let i = 0; i < pts.length; i++) {
+      samples.push(pts[i]);
+      if (i === pts.length - 1) break;
+      const n = Math.floor((cum[i + 1] - cum[i]) / maxGap);
+      for (let k = 1; k <= n; k++) {
+        const t = k / (n + 1);
+        samples.push({
+          lat: pts[i].lat + t * (pts[i + 1].lat - pts[i].lat),
+          lon: pts[i].lon + t * (pts[i + 1].lon - pts[i].lon),
+        });
+      }
     }
   }
 
@@ -380,7 +498,7 @@ function downloadParams() {
 }
 
 function updateEstimate() {
-  if (!route.pts.length) return;
+  if (!network.tracks.length && !network.pois.length) return;
   const { zMin, zMax, buffer } = downloadParams();
   const n = corridorTiles(zMin, zMax, buffer).length;
   $('dlEstimate').textContent = `${n} Kacheln · ca. ${fmtMB(n * AVG_TILE_KB * 1024)}`;
@@ -498,26 +616,39 @@ $('btnSim').onclick = () => {
 };
 ['dlLayer', 'dlZoom', 'dlBuffer'].forEach((id) => $(id).addEventListener('change', updateEstimate));
 
+// Eigene GPX-Datei ersetzt das Standard-Wegnetz (bleibt nach Neuladen erhalten)
 $('gpxFile').onchange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   try {
     const text = await file.text();
-    setRoute(parseGpx(text));
-    localStorage.setItem('customGpx', text); // überlebt Neuladen, auch offline
+    setNetwork(parseGpx(text, file.name));
+    localStorage.setItem('customGpx', text);
+    localStorage.setItem('customGpxName', file.name);
+    $('btnResetNetwork').hidden = false;
   } catch (err) {
     alert(err.message);
   }
 };
 
-async function loadInitialRoute() {
+$('btnResetNetwork').onclick = () => {
+  localStorage.removeItem('customGpx');
+  localStorage.removeItem('customGpxName');
+  $('btnResetNetwork').hidden = true;
+  $('gpxFile').value = '';
+  loadNetwork();
+};
+
+async function loadNetwork() {
   const custom = localStorage.getItem('customGpx');
+  $('btnResetNetwork').hidden = !custom;
   try {
-    if (custom) return setRoute(parseGpx(custom));
-    const res = await fetch(DEFAULT_ROUTE);
-    setRoute(parseGpx(await res.text()));
+    if (custom) return setNetwork(parseGpx(custom, localStorage.getItem('customGpxName') || 'eigene.gpx'));
+    const res = await fetch(NETWORK_URL);
+    if (!res.ok) throw new Error(`${NETWORK_URL}: HTTP ${res.status}`);
+    setNetwork(await res.json());
   } catch (err) {
-    setStatus('off', 'Route konnte nicht geladen werden', err.message);
+    setStatus('off', 'Strecken konnten nicht geladen werden', err.message);
   }
 }
 
@@ -525,4 +656,4 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW-Registrierung fehlgeschlagen', e));
 }
 
-loadInitialRoute();
+loadNetwork();

@@ -30,7 +30,7 @@
 
   <section id="panel" class="panel" hidden>
     <h2>Offline-Karten</h2>
-    <p class="hint">Lädt Kartenkacheln in einem Korridor entlang der Strecke auf das Gerät. Am besten im WLAN ausführen.</p>
+    <p class="hint">Lädt Kartenkacheln in einem Korridor entlang aller eingeblendeten Strecken und um die POIs auf das Gerät. Am besten im WLAN ausführen.</p>
 
     <label>Kartentyp
       <select id="dlLayer"></select>
@@ -68,9 +68,12 @@
         <option value="75">75 m</option>
       </select>
     </label>
-    <label>Andere Route laden (GPX)
+    <label>Eigene GPX statt Standard-Strecken laden
       <input type="file" id="gpxFile" accept=".gpx,application/gpx+xml">
     </label>
+    <div class="row">
+      <button id="btnResetNetwork" hidden>Standard-Strecken wiederherstellen</button>
+    </div>
 
     <p id="storage" class="mono"></p>
     <div class="row">
