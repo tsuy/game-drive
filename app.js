@@ -160,7 +160,7 @@ function setNetwork({ tracks, pois }) {
     // Dunkler Rand unter der farbigen Linie: auf Satellitenbildern besser sichtbar
     L.polyline(latlngs, { color: '#000', weight: 7, opacity: 0.45, interactive: false }).addTo(g.layer);
     L.polyline(latlngs, { color: g.color, weight: 4 })
-      .bindTooltip(`${t.label} · ${fmtKm(t.length)}`, { sticky: true })
+      .bindTooltip(`${t.label} · ${t.id} · ${fmtKm(t.length)}`, { sticky: true })
       .addTo(g.layer);
   }
 

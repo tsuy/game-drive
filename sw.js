@@ -2,7 +2,7 @@
 
 // App-Shell-Version: bei Änderungen an den Dateien unten hochzählen,
 // damit Clients die neue Version erhalten.
-const SHELL_CACHE = 'shell-v2';
+const SHELL_CACHE = 'shell-v3';
 // Muss mit TILE_CACHE in app.js übereinstimmen. Wird bei Shell-Updates NICHT
 // gelöscht, damit heruntergeladene Karten erhalten bleiben.
 const TILE_CACHE = 'tiles-v1';

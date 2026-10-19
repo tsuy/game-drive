@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Fasst alle GPX-Dateien aus gpx-source/ zu data/network.json zusammen.
 
-- Tracks (<trkseg>) aus allen Dateien -> "tracks". Dateien mit gleichem
-  Namensstamm (swisspeak.gpx, swisspeak-1.gpx, ...) bilden eine Gruppe, die
-  in der App eine gemeinsame Farbe bekommt und ein-/ausblendbar ist.
+- Tracks (<trkseg>) aus allen Dateien -> "tracks". Jeder Unterordner von
+  gpx-source/ ist ein Layer: alle GPX darin (auch in tieferen Ordnern) werden
+  in der App in derselben Farbe gezeichnet und gemeinsam ein-/ausgeblendet.
+  Der Ordnername wird zum Anzeigenamen ("Dopotta-to-Tuli" -> "Dopotta to Tuli").
+  Tracks direkt in gpx-source/ landen im Layer "Sonstige".
 - Wegpunkte (<wpt>) aus allen Dateien -> "pois"
 - Zeit, Puls, Temperatur usw. werden verworfen, Koordinaten auf 6 Stellen
   (~10 cm) gerundet, aufeinanderfolgende Duplikate entfernt.
@@ -32,16 +34,19 @@ def text(el, tag):
     return child.text.strip() if child is not None and child.text else None
 
 
-def group_of(stem):
-    # "manually-added-2-1" -> "manually-added", "boabab-2view-points-3" -> "boabab-2view-points"
-    return re.sub(r"(-\d+)+$", "", stem)
+def layer_of(path):
+    """Oberster Unterordner relativ zu gpx-source/ -> (key, Anzeigename)."""
+    parts = path.relative_to(SOURCE).parts
+    if len(parts) == 1:
+        return "sonstige", "Sonstige"
+    folder = parts[0]
+    return folder.lower(), re.sub(r"[-_]+", " ", folder)
 
 
 def parse(path):
     root = ET.parse(path).getroot()
     tracks, pois = [], []
-    group = group_of(path.stem)
-    label = " ".join(w[:1].upper() + w[1:] for w in group.split("-"))
+    group, label = layer_of(path)
 
     for trk in root.findall("g:trk", NS):
         for seg in trk.findall("g:trkseg", NS):
@@ -73,12 +78,12 @@ def parse(path):
 
 def main():
     tracks, pois, skipped = [], [], []
-    for path in sorted(SOURCE.glob("*.gpx")):
+    for path in sorted(SOURCE.rglob("*.gpx")):
         if path.name in IGNORE:
             continue
         t, p = parse(path)
         if not t and not p:
-            skipped.append(path.name)
+            skipped.append(str(path.relative_to(SOURCE)))
         tracks += t
         pois += p
 
@@ -92,6 +97,11 @@ def main():
     points = sum(len(t["coords"]) for t in tracks)
     print(f"{len(tracks)} Tracks ({points} Punkte), {len(pois)} POIs -> {TARGET.relative_to(ROOT)} "
           f"({TARGET.stat().st_size // 1024} KB)")
+    layers = {}
+    for t in tracks:
+        layers[t["label"]] = layers.get(t["label"], 0) + 1
+    for label, n in layers.items():
+        print(f"  Layer {label}: {n} Tracks")
     if skipped:
         print("Übersprungen (keine Strecke / < 2 Punkte):", ", ".join(skipped), file=sys.stderr)
 
