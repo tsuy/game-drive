@@ -107,6 +107,7 @@ const network = {
   groups: {},   // group -> {label, color, layer, visible, length}
   pois: [],     // [{name, lat, lon, ele?, desc?}]
   poiLayer: null,
+  roadLayer: null,
   length: 0,
 };
 let layerControl = null;
@@ -137,12 +138,13 @@ function parseGpx(text, fileName) {
   return { tracks, pois };
 }
 
-function setNetwork({ tracks, pois }) {
+function setNetwork({ tracks, pois, roads = [] }) {
   // Control zuerst entfernen: sonst feuert das Entfernen der Layer
   // 'overlayremove' und würde alle Gruppen als ausgeblendet speichern.
   layerControl?.remove();
   for (const g of Object.values(network.groups)) g.layer.remove();
   network.poiLayer?.remove();
+  network.roadLayer?.remove();
 
   network.tracks = tracks.map(prepTrack);
   network.length = network.tracks.reduce((s, t) => s + t.length, 0);
@@ -166,6 +168,7 @@ function setNetwork({ tracks, pois }) {
 
   network.pois = pois;
   network.poiLayer = L.layerGroup(pois.map(poiMarker));
+  network.roadLayer = L.layerGroup(roads.map(roadLabel).filter(Boolean));
 
   // Ebenen-Menü: Kartentyp + jede Streckengruppe + POIs einzeln schaltbar
   const overlays = {};
@@ -175,7 +178,9 @@ function setNetwork({ tracks, pois }) {
     if (g.visible) g.layer.addTo(map);
   }
   overlays['📍 POIs'] = network.poiLayer;
+  overlays['🛣️ Strassennamen'] = network.roadLayer;
   if (localStorage.getItem('poisHidden') !== '1') network.poiLayer.addTo(map);
+  if (localStorage.getItem('roadsHidden') !== '1') network.roadLayer.addTo(map);
   layerControl = L.control.layers(baseLayers, overlays, { position: 'topright' }).addTo(map);
 
   const all = network.tracks.flatMap((t) => t.pts.map((p) => [p.lat, p.lon]))
@@ -205,6 +210,52 @@ function poiMarker(poi) {
     return lines.join('<br>');
   });
   return m;
+}
+
+// Strassenname als reines Text-Label ohne Marker: wird auf die nächste Strecke
+// (max. ROAD_SNAP_M entfernt) gesetzt und in Fahrtrichtung der Strasse gedreht.
+// Liegt keine Strecke in der Nähe, steht der Text waagrecht am gesetzten Punkt.
+const ROAD_SNAP_M = 150;
+
+function roadLabel(road) {
+  const snap = snapToNetwork(road);
+  let pos = road, angle = 0;
+  if (snap && snap.dist <= ROAD_SNAP_M) {
+    pos = snap.point;
+    // Richtung über ein paar Punkte vor/nach der Stelle glätten (GPS-Zittern)
+    const { pts } = snap.track;
+    const a = pts[Math.max(0, snap.i - 3)];
+    const b = pts[Math.min(pts.length - 1, snap.i + 4)];
+    // Web-Mercator ist winkeltreu: Peilung 90° (Ost) = Text waagrecht
+    angle = bearing(a, b) - 90;
+    // Nie auf dem Kopf: Winkel in (-90°, 90°] halten
+    if (angle > 90) angle -= 180;
+    if (angle <= -90) angle += 180;
+  }
+  return L.marker([pos.lat, pos.lon], {
+    icon: L.divIcon({
+      className: 'road-label',
+      html: `<span style="transform: translate(-50%, -50%) rotate(${angle.toFixed(1)}deg)">${escapeHtml(road.name)}</span>`,
+      iconSize: [0, 0],
+    }),
+    interactive: false,
+    keyboard: false,
+  });
+}
+
+// Nächste Stelle auf irgendeiner Strecke (auch ausgeblendeten), inkl. Segmentindex
+function snapToNetwork(p) {
+  let best = null;
+  for (const track of network.tracks) {
+    for (let i = 0; i < track.pts.length - 1; i++) {
+      const { dist, t } = pointSegment(p, track.pts[i], track.pts[i + 1]);
+      if (!best || dist < best.dist) best = { dist, t, i, track };
+    }
+  }
+  if (!best) return null;
+  const a = best.track.pts[best.i], b = best.track.pts[best.i + 1];
+  best.point = { lat: a.lat + best.t * (b.lat - a.lat), lon: a.lon + best.t * (b.lon - a.lon) };
+  return best;
 }
 
 function escapeHtml(s) {
@@ -270,6 +321,10 @@ function onOverlayToggle(e, visible) {
     localStorage.setItem('poisHidden', visible ? '0' : '1');
     return;
   }
+  if (e.layer === network.roadLayer) {
+    localStorage.setItem('roadsHidden', visible ? '0' : '1');
+    return;
+  }
   const g = network.groups[e.layer.options.groupKey];
   if (!g) return;
   g.visible = visible;
@@ -281,8 +336,14 @@ function onOverlayToggle(e, visible) {
 map.on('overlayadd', (e) => onOverlayToggle(e, true));
 map.on('overlayremove', (e) => onOverlayToggle(e, false));
 
-// POI-Namen erst ab Zoom 14 einblenden, sonst überlagern sie sich
-const updateLabelVisibility = () => map.getContainer().classList.toggle('hide-poi-labels', map.getZoom() < 14);
+// Beschriftungen erst ab einer Zoomstufe einblenden, sonst überlagern sie sich
+const POI_LABEL_MIN_ZOOM = 14;
+const ROAD_LABEL_MIN_ZOOM = 15;
+const updateLabelVisibility = () => {
+  const z = map.getZoom(), el = map.getContainer();
+  el.classList.toggle('hide-poi-labels', z < POI_LABEL_MIN_ZOOM);
+  el.classList.toggle('hide-road-labels', z < ROAD_LABEL_MIN_ZOOM);
+};
 map.on('zoomend', updateLabelVisibility);
 map.setView([-22.1, 29.0], 12);
 updateLabelVisibility();

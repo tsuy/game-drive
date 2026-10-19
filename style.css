@@ -125,6 +125,20 @@ button:disabled { opacity: .5; }
 .poi-label::before { display: none; }
 .hide-poi-labels .poi-label { display: none; }
 
+/* Strassenname: nur Text mit dunklem Halo, entlang der Strasse gedreht */
+.road-label { pointer-events: none; }
+.road-label span {
+  position: absolute;
+  white-space: nowrap;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  font-style: italic;
+  letter-spacing: .04em;
+  text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 6px rgba(0, 0, 0, .8);
+}
+.hide-road-labels .road-label { display: none; }
+
 .me-dot {
   width: 18px; height: 18px;
   border-radius: 50%;

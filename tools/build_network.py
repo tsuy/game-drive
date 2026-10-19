@@ -7,6 +7,8 @@
   Der Ordnername wird zum Anzeigenamen ("Dopotta-to-Tuli" -> "Dopotta to Tuli").
   Tracks direkt in gpx-source/ landen im Layer "Sonstige".
 - Wegpunkte (<wpt>) aus allen Dateien -> "pois"
+- Wegpunkte aus roadnames.gpx -> "roads" (Strassennamen; die App setzt das
+  Label auf die nächste Strecke und dreht es in Strassenrichtung)
 - Zeit, Puls, Temperatur usw. werden verworfen, Koordinaten auf 6 Stellen
   (~10 cm) gerundet, aufeinanderfolgende Duplikate entfernt.
 
@@ -24,7 +26,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "gpx-source"
 TARGET = ROOT / "data" / "network.json"
-IGNORE = {"roadnames.gpx"}  # wird später separat behandelt
+ROADNAMES = SOURCE / "roadnames.gpx"
 
 NS = {"g": "http://www.topografix.com/GPX/1/1"}
 
@@ -79,7 +81,7 @@ def parse(path):
 def main():
     tracks, pois, skipped = [], [], []
     for path in sorted(SOURCE.rglob("*.gpx")):
-        if path.name in IGNORE:
+        if path == ROADNAMES:
             continue
         t, p = parse(path)
         if not t and not p:
@@ -87,16 +89,22 @@ def main():
         tracks += t
         pois += p
 
+    roads = []
+    if ROADNAMES.exists():
+        _, wpts = parse(ROADNAMES)
+        roads = [{"name": w["name"], "lat": w["lat"], "lon": w["lon"]} for w in wpts]
+
     TARGET.parent.mkdir(exist_ok=True)
     TARGET.write_text(json.dumps({
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "tracks": tracks,
         "pois": pois,
+        "roads": roads,
     }, separators=(",", ":"), ensure_ascii=False))
 
     points = sum(len(t["coords"]) for t in tracks)
-    print(f"{len(tracks)} Tracks ({points} Punkte), {len(pois)} POIs -> {TARGET.relative_to(ROOT)} "
-          f"({TARGET.stat().st_size // 1024} KB)")
+    print(f"{len(tracks)} Tracks ({points} Punkte), {len(pois)} POIs, {len(roads)} Strassennamen "
+          f"-> {TARGET.relative_to(ROOT)} ({TARGET.stat().st_size // 1024} KB)")
     layers = {}
     for t in tracks:
         layers[t["label"]] = layers.get(t["label"], 0) + 1
