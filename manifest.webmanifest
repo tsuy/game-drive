@@ -1,7 +1,8 @@
 {
-  "name": "Trail Navi – Forest Loop",
+  "name": "Trail Navi – Northern Tuli",
   "short_name": "Trail Navi",
-  "description": "Offline-Karten und Strecken-Check per GPS",
+  "description": "Offline maps and GPS track check",
+  "lang": "en",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

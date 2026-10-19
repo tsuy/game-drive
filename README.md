@@ -1,105 +1,104 @@
-# Trail Navi – Offline-Navi-PWA (PoC)
+# Trail Navi – Offline Navigation PWA (PoC)
 
-Progressive Web App für ein bestimmtes Gebiet: **Northern Tuli / Dopotta, Botswana**.
-Sie zeigt Satellitenkarten offline an, blendet ein Netz aufgezeichneter Strecken und POIs ein
-und prüft per GPS, ob man sich auf einer der Strecken befindet.
+Progressive web app for one specific area: **Northern Tuli / Dopotta, Botswana**.
+It shows satellite maps offline, overlays a network of recorded tracks and POIs,
+and uses GPS to check whether you are on one of the tracks.
 
-> Status: Proof of Concept. In Headless-Chrome getestet (Download, Simulation, Offline-Reload).
-> Auf einem echten Gerät mit echtem GPS noch **nicht** getestet.
-
----
-
-## Inhalt
-
-1. [Funktionen](#funktionen)
-2. [Projektstruktur](#projektstruktur)
-3. [Daten: von GPX zur App](#daten-von-gpx-zur-app)
-4. [Starten & Deployment](#starten--deployment)
-5. [Bedienung](#bedienung)
-6. [Architektur](#architektur)
-7. [Konfiguration](#konfiguration)
-8. [Erkenntnisse & Stolpersteine](#erkenntnisse--stolpersteine)
-9. [Rechtliches zu Kartenquellen](#rechtliches-zu-kartenquellen)
-10. [Plattform-Einschränkungen](#plattform-einschränkungen)
-11. [Offene Punkte & Ideen](#offene-punkte--ideen)
-12. [Mögliche Erweiterungen](#mögliche-erweiterungen)
+> Status: proof of concept. Tested in headless Chrome (download, simulation, offline reload).
+> **Not yet** tested on a real device with real GPS.
 
 ---
 
-## Funktionen
+## Contents
 
-| Bereich | Was die App kann |
+1. [Features](#features)
+2. [Project structure](#project-structure)
+3. [Data: from GPX to the app](#data-from-gpx-to-the-app)
+4. [Running & deployment](#running--deployment)
+5. [Usage](#usage)
+6. [Architecture](#architecture)
+7. [Configuration](#configuration)
+8. [Lessons learned & pitfalls](#lessons-learned--pitfalls)
+9. [Map sources: legal notes](#map-sources-legal-notes)
+10. [Platform limitations](#platform-limitations)
+11. [Open items & ideas](#open-items--ideas)
+12. [Possible extensions](#possible-extensions)
+
+---
+
+## Features
+
+| Area | What the app does |
 |---|---|
-| **Karten** | Satellit (Esri, Standard), Satellit (Google), Satellit + Strassen (Google), OpenStreetMap (nur online) |
-| **Offline** | App selbst (Service Worker) + Kartenkacheln in einem Korridor entlang aller eingeblendeten Strecken und um die POIs |
-| **Strecken** | 25 Teilstrecken (111.5 km) aus `gpx-source/`, ein farbiger Layer pro Unterordner (aktuell 4), einzeln ein-/ausblendbar |
-| **POIs** | 12 Punkte mit Pin und Namensschild (ab Zoom 14), Popup mit Höhe, Koordinaten, Entfernung + Himmelsrichtung |
-| **Strassennamen** | Text ohne Marker, entlang der Strasse gedreht, ab Zoom 15, im Ebenen-Menü schaltbar |
-| **Steigung** | Strecken auf Knopfdruck nach Steigung eingefärbt (grün → gelb → orange → rot) mit Legende; Tooltip mit Steigung, Höhenmetern ↑↓ und Maximalsteigung |
-| **GPS-Check** | Abstand zur nächsten eingeblendeten Strecke; Status grün (auf Strecke) / rot + Vibration (abseits) / orange (GPS ungenau) |
-| **Statuszeile** | Aktuelle Strecke, nächster POI mit Entfernung + Richtung, GPS-Genauigkeit |
-| **Sonstiges** | Bildschirm bleibt an (Wake Lock), Simulationsmodus für Desktop-Tests, eigene GPX hochladen |
+| **Maps** | Satellite (Esri, default), Satellite (Google), Satellite + roads (Google), OpenStreetMap (online only) |
+| **Offline** | The app itself (service worker) + map tiles in a corridor along all visible tracks and around the POIs |
+| **Tracks** | 25 track sections (111.5 km) from `gpx-source/`, one coloured layer per subfolder (currently 4), individually toggleable |
+| **POIs** | 12 points with pin and name label (from zoom 14), popup with elevation, coordinates, distance + compass direction |
+| **Road names** | Text without marker, rotated along the road, from zoom 15, toggleable in the layer menu |
+| **Slope** | Tracks coloured by slope at the press of a button (green → yellow → orange → red) with legend; tooltip with slope, ascent/descent ↑↓ and maximum slope |
+| **GPS check** | Distance to the nearest visible track; status green (on track) / red + vibration (off track) / orange (GPS inaccurate) |
+| **Status bar** | Current track, nearest POI with distance + direction, GPS accuracy |
+| **Other** | Screen stays on (Wake Lock), simulation mode for desktop testing, upload a custom GPX |
 
 ---
 
-## Projektstruktur
+## Project structure
 
 ```
 pwa/
-├── index.html               App-Shell (Karte, Statusanzeige, Einstellungs-Panel)
-├── style.css                Styles (mobile first, Safe Areas für Notch)
-├── app.js                   Gesamte App-Logik (Leaflet, GPS, Download)
-├── sw.js                    Service Worker (Offline-Shell + Kachel-Cache)
-├── manifest.webmanifest     PWA-Manifest (Installierbarkeit)
-├── icons/                   App-Icons (SVG, 192 px, 512 px)
-├── vendor/leaflet/          Leaflet 1.9.4, lokal abgelegt (kein CDN → offline-fähig)
-├── data/network.json        GENERIERT: alle Strecken + POIs (nicht von Hand bearbeiten)
-├── tools/build_network.py   Erzeugt data/network.json aus gpx-source/
-├── gpx-source/              Quell-GPX-Dateien (Teilstrecken, POIs, Strassennamen)
-└── activity_24685244096.gpx Ursprüngliche Garmin-Aufzeichnung (nur Referenz, wird nicht geladen)
+├── index.html               App shell (map, status display, settings panel)
+├── style.css                Styles (mobile first, safe areas for the notch)
+├── app.js                   All app logic (Leaflet, GPS, download)
+├── sw.js                    Service worker (offline shell + tile cache)
+├── manifest.webmanifest     PWA manifest (installability)
+├── icons/                   App icons (SVG, 192 px, 512 px)
+├── vendor/leaflet/          Leaflet 1.9.4, stored locally (no CDN → works offline)
+├── data/network.json        GENERATED: all tracks + POIs (do not edit by hand)
+├── tools/build_network.py   Generates data/network.json from gpx-source/
+├── gpx-source/              Source GPX files (track sections, POIs, road names)
+└── activity_24685244096.gpx Original Garmin recording (reference only, not loaded)
 ```
 
-Kein Build-Schritt, keine npm-Abhängigkeiten: alles sind statische Dateien.
+No build step, no npm dependencies: everything is static files.
 
 ---
 
-## Daten: von GPX zur App
+## Data: from GPX to the app
 
-### Quelle: `gpx-source/`
+### Source: `gpx-source/`
 
-**Jeder Unterordner ist ein Layer.** Alle GPX-Dateien in einem Ordner werden in derselben Farbe
-gezeichnet und gemeinsam ein-/ausgeblendet. Der Ordnername wird zum Anzeigenamen
-(`-` und `_` → Leerzeichen).
+**Each subfolder is one layer.** All GPX files in a folder are drawn in the same colour and
+toggled together. The folder name becomes the display name (`-` and `_` → space).
 
 ```
 gpx-source/
-├── Dopotta/                  → Layer „Dopotta“          (17 Tracks, 65.4 km)
-├── Dopotta-to-Tuli/          → Layer „Dopotta to Tuli“  (1 Track, 25.5 km)
-├── Jwala-to-Dopotta/         → Layer „Jwala to Dopotta“ (1 Track, 6.6 km)
-├── Manually-Added/           → Layer „Manually Added“   (6 Tracks, 14.1 km)
-├── points-of-interests.gpx   → POIs (12 Wegpunkte)
-└── roadnames.gpx             → Strassennamen (Beschriftungen ab Zoom 15)
+├── Dopotta/                  → layer "Dopotta"          (17 tracks, 65.4 km)
+├── Dopotta-to-Tuli/          → layer "Dopotta to Tuli"  (1 track, 25.5 km)
+├── Jwala-to-Dopotta/         → layer "Jwala to Dopotta" (1 track, 6.6 km)
+├── Manually-Added/           → layer "Manually Added"   (6 tracks, 14.1 km)
+├── points-of-interests.gpx   → POIs (12 waypoints)
+└── roadnames.gpx             → road names (labels from zoom 15)
 ```
 
-| Ort | Inhalt | Verwendung |
+| Location | Content | Used as |
 |---|---|---|
-| `<Layer-Ordner>/*.gpx` | Teilstrecken (aus Garmin-Aufzeichnungen extrahiert bzw. in gpx.studio gezeichnet). Unterordner darin sind erlaubt und gehören zum selben Layer | → `tracks` |
-| `points-of-interests.gpx` | 12 `<wpt>`-Wegpunkte | → `pois` |
-| `roadnames.gpx` | Wegpunkte mit Strassennamen (aktuell Majali Loop, Majali Link Road) | → `roads` (nicht als POI) |
+| `<layer folder>/*.gpx` | Track sections (extracted from Garmin recordings or drawn in gpx.studio). Subfolders are allowed and belong to the same layer | → `tracks` |
+| `points-of-interests.gpx` | 12 `<wpt>` waypoints | → `pois` |
+| `roadnames.gpx` | 11 waypoints with road names (Southern Boundary Road, Madiope Road/Loop/Link Road, Majali Loop/Link Road, Lost Valley Loop Road, Link Road, Laxtions Road, Schotia Road, Swiss Peak Road) | → `roads` (not as POIs) |
 
-**Strassennamen erfassen:** In gpx.studio `roadnames.gpx` öffnen und pro Strasse einen Wegpunkt
-**auf oder neben die Strasse** setzen (max. 150 m entfernt), Name = Strassenname. Die App:
+**Adding road names:** Open `roadnames.gpx` in gpx.studio and place one waypoint per road
+**on or next to the road** (at most 150 m away), name = road name. The app:
 
-- setzt den Text auf die nächstgelegene Strecke und dreht ihn in Strassenrichtung,
-- zeigt ihn ohne Marker, nur als weisse kursive Schrift mit dunklem Rand,
-- blendet ihn erst ab **Zoom 15** ein (`ROAD_LABEL_MIN_ZOOM` in `app.js`),
-- stellt ihn waagrecht an den Wegpunkt, wenn keine Strecke innerhalb von 150 m liegt (`ROAD_SNAP_M`).
+- places the text on the nearest track and rotates it along the road,
+- shows it without a marker, just as white italic text with a dark outline,
+- only shows it from **zoom 15** (`ROAD_LABEL_MIN_ZOOM` in `app.js`),
+- places it horizontally at the waypoint if no track lies within 150 m (`ROAD_SNAP_M`).
 
-Für lange Strassen einfach mehrere Wegpunkte mit demselben Namen setzen, z.B. alle 1–2 km.
+For long roads, simply add several waypoints with the same name, e.g. every 1–2 km.
 
-**Neuen Layer anlegen:** Ordner in `gpx-source/` erstellen, GPX-Dateien hineinlegen, Build-Skript
-ausführen. Eine GPX direkt im Hauptordner mit Tracks landet im Layer „Sonstige“. Wegpunkte
-(`<wpt>`) werden aus *allen* Dateien als POIs übernommen, egal in welchem Ordner.
+**Adding a new layer:** Create a folder in `gpx-source/`, put GPX files in it, run the build
+script. A GPX file with tracks placed directly in the root folder ends up in the layer "Other".
+Waypoints (`<wpt>`) are taken from *all* files as POIs, regardless of folder.
 
 ### Build
 
@@ -107,26 +106,26 @@ ausführen. Eine GPX direkt im Hauptordner mit Tracks landet im Layer „Sonstig
 python3 tools/build_network.py
 ```
 
-Nach **jeder Änderung** in `gpx-source/` erneut ausführen. Das Skript:
+Run again after **every change** in `gpx-source/`. The script:
 
-- liest alle `*.gpx` rekursiv mit der Python-Standardbibliothek (keine Abhängigkeiten);
-  `roadnames.gpx` wird separat als `roads` übernommen,
-- übernimmt jeden `<trkseg>` mit ≥ 2 Punkten als Strecke und jeden `<wpt>` als POI
-  (`name`, `ele`, optional `desc`, `type`, `sym`),
-- verwirft Zeit, Puls, Temperatur und andere Extensions,
-- übernimmt die **Höhe** jedes Trackpunkts als `ele` (für die Steigungsfarben), sofern jeder Punkt
-  einer Strecke eine Höhe hat; sonst meldet es die Strecke,
-- rundet Koordinaten auf 6 Nachkommastellen (~10 cm) und entfernt direkt aufeinanderfolgende Duplikate,
-- ordnet jede Strecke dem **obersten Unterordner** als Layer zu,
-- gibt am Ende eine Übersicht pro Layer aus und meldet übersprungene Dateien.
+- reads all `*.gpx` recursively using the Python standard library (no dependencies);
+  `roadnames.gpx` is handled separately as `roads`,
+- takes every `<trkseg>` with ≥ 2 points as a track and every `<wpt>` as a POI
+  (`name`, `ele`, optionally `desc`, `type`, `sym`),
+- drops time, heart rate, temperature and other extensions,
+- keeps the **elevation** of each track point as `ele` (for slope colours), provided every point
+  of a track has one; otherwise it reports the track,
+- rounds coordinates to 6 decimals (~10 cm) and removes consecutive duplicates,
+- assigns each track to its **top-level subfolder** as layer,
+- prints a per-layer summary at the end and reports skipped files.
 
-Ergebnis (Stand 19.10.2026): **25 Tracks, 7032 Punkte, 12 POIs, 200 KB** (Quellen: ~2.7 MB).
-Alle Strecken haben vollständige Höhendaten.
+Result (as of 19 Oct 2026): **25 tracks, 7032 points, 12 POIs, 11 road names, 201 KB** (sources: ~2.7 MB).
+All tracks have complete elevation data.
 
-> Bis 18.10.2026 wurden Layer aus Dateinamen abgeleitet (`swisspeak-1.gpx` → „Swisspeak“).
-> Das ist durch die Ordnerstruktur ersetzt: die Zuordnung ist so explizit und unabhängig von Dateinamen.
+> Until 18 Oct 2026 layers were derived from file names (`swisspeak-1.gpx` → "Swisspeak").
+> This has been replaced by the folder structure: the assignment is explicit and independent of file names.
 
-### Format von `data/network.json`
+### Format of `data/network.json`
 
 ```json
 {
@@ -138,384 +137,387 @@ Alle Strecken haben vollständige Höhendaten.
   ],
   "pois": [
     { "name": "Big Boabab", "lat": -22.111346, "lon": 28.973962, "ele": 630 }
+  ],
+  "roads": [
+    { "name": "Majali Loop", "lat": -22.056564, "lon": 28.989803 }
   ]
 }
 ```
 
-`id` ist der Dateiname (erscheint im Tooltip beim Tippen auf eine Linie), `group` der Layer-Schlüssel,
-`label` der Anzeigename, `ele` die Höhe in m pro Punkt (gleiche Länge wie `coords`, optional).
-Koordinaten in `coords` sind `[lat, lon]` (Leaflet-Reihenfolge, **nicht** GeoJSON-Reihenfolge `[lon, lat]`).
+`id` is the file name (shown in the tooltip when tapping a line), `group` the layer key,
+`label` the display name, `ele` the elevation in m per point (same length as `coords`, optional).
+Coordinates in `coords` are `[lat, lon]` (Leaflet order, **not** GeoJSON order `[lon, lat]`).
 
-### Datenqualität: bekannte Auffälligkeiten
+### Data quality: known issues
 
-- `Dopotta/lexington.gpx`, `lexington-3.gpx`, `lexington-4.gpx`, `lexington-6.gpx` enthalten **nur einen einzigen Punkt**
-  und werden übersprungen (das Skript meldet sie). Vermutlich Reste vom Zerschneiden in gpx.studio, sie können gelöscht werden.
-- Der Layer **„Manually Added“** enthält eine auffällig schnurgerade Linie im Westen. Die Punkte darauf
-  liegen dicht beieinander, es ist also kein Datenfehler. Ob es wirklich ein Weg ist, muss vor Ort geprüft werden.
-- Keine Lücken > 150 m zwischen aufeinanderfolgenden Punkten **innerhalb** einer Strecke (geprüft).
-- **Zwischen** den Teilstrecken gibt es Lücken: Die Enden treffen sich meist nicht exakt, sondern liegen
-  einige Meter neben der Nachbarstrecke. Auf der Karte fällt das kaum auf, das Netz ist aber technisch
-  nicht verbunden. Messwerte und ein Lösungsansatz siehe
-  [Mögliche Erweiterung: Teilstrecken automatisch verbinden](#teilstrecken-automatisch-verbinden-snapping).
+- `Dopotta/lexington.gpx`, `lexington-3.gpx`, `lexington-4.gpx`, `lexington-6.gpx` contain **only a single point**
+  and are skipped (the script reports them). Probably leftovers from splitting in gpx.studio; they can be deleted.
+- The layer **"Manually Added"** contains a conspicuously straight line in the west. The points on it
+  are closely spaced, so it is not a data error. Whether it really is a track needs to be checked on site.
+- No gaps > 150 m between consecutive points **within** a track (verified).
+- There are gaps **between** track sections: the ends usually don't meet exactly but lie a few metres
+  next to the neighbouring track. This is barely noticeable on the map, but the network is technically
+  not connected. Measurements and a possible approach: see
+  [Possible extension: connect track sections automatically](#connect-track-sections-automatically-snapping).
 
-### Layer
+### Layers
 
-| Layer | Farbe | Teilstrecken | Länge | Enthält |
+| Layer | Colour | Track sections | Length | Contains |
 |---|---|---|---|---|
-| Dopotta | Orange-Rot | 17 | 65.4 km | Boabab 2 View Points, Forest Loop / Tommy's View, Lexington, Southern Part, Swiss Peak |
-| Dopotta to Tuli | Gelb | 1 | 25.5 km | Transfer Dopotta → Tuli Lodge |
+| Dopotta | Orange-red | 17 | 65.4 km | Boabab 2 View Points, Forest Loop / Tommy's View, Lexington, Southern Part, Swiss Peak |
+| Dopotta to Tuli | Yellow | 1 | 25.5 km | Transfer Dopotta → Tuli Lodge |
 | Jwala to Dopotta | Cyan | 1 | 6.6 km | Transfer Jwala → Dopotta |
-| Manually Added | Pink | 6 | 14.1 km | In gpx.studio gezeichnete Ergänzungen |
+| Manually Added | Pink | 6 | 14.1 km | Additions drawn in gpx.studio |
 
-Farben werden in alphabetischer Reihenfolge der Ordner aus `GROUP_COLORS` (`app.js`) vergeben.
-Ein neuer Ordner kann daher die Farben der nachfolgenden Layer verschieben.
+Colours are assigned from `GROUP_COLORS` (`app.js`) in alphabetical order of the folders.
+A new folder can therefore shift the colours of the layers after it.
 
 ### POIs
 
 Dopotta Lodge · Forest Loop · Muwane View Point · Motloutse View Point · Big Boabab · Laxtons Hide ·
 Swiss Peak Hill · Jackal Pan · Tommy's View Point · Madikolobe Hide · Jwala Lodge · Tuli Lodge
 
-POIs bearbeitet man am einfachsten auf [gpx.studio](https://gpx.studio): `points-of-interests.gpx` hochladen,
-Punkte setzen/verschieben, herunterladen, Build-Skript ausführen.
+The easiest way to edit POIs is [gpx.studio](https://gpx.studio): upload `points-of-interests.gpx`,
+add/move points, download, run the build script.
 
 ---
 
-## Starten & Deployment
+## Running & deployment
 
-GPS (`navigator.geolocation`) und Service Worker funktionieren nur in einem **sicheren Kontext**:
-`https://` oder `http://localhost`.
+GPS (`navigator.geolocation`) and service workers only work in a **secure context**:
+`https://` or `http://localhost`.
 
-### Lokal am Desktop
+### Locally on the desktop
 
 ```bash
 python3 -m http.server 8000
 # → http://localhost:8000
 ```
 
-Zum Testen ohne GPS: *Menü → Simulation starten*.
+To test without GPS: *Menu → Start simulation*.
 
-### Auf dem Handy
+### On the phone
 
-| Variante | Vorgehen |
+| Option | How |
 |---|---|
-| **Statisches Hosting** (empfohlen) | Ordner auf GitHub Pages, Netlify oder Cloudflare Pages hochladen. `gpx-source/`, `tools/` und `activity_*.gpx` müssen nicht mit. |
-| **Tunnel vom Laptop** | `python3 -m http.server 8000` und dann `npx localtunnel --port 8000` oder `ngrok http 8000` → HTTPS-URL am Handy öffnen |
+| **Static hosting** (recommended) | Upload the folder to GitHub Pages, Netlify or Cloudflare Pages. `gpx-source/`, `tools/` and `activity_*.gpx` don't need to be included. |
+| **Tunnel from the laptop** | `python3 -m http.server 8000`, then `npx localtunnel --port 8000` or `ngrok http 8000` → open the HTTPS URL on the phone |
 
-Ablauf auf dem Gerät:
-1. URL öffnen → **Zum Home-Bildschirm hinzufügen** (wichtig, v.a. für iOS, siehe unten).
-2. Im WLAN: *Menü → Herunterladen*.
-3. Unterwegs: *GPS starten*.
+On the device:
+1. Open the URL → **Add to Home Screen** (important, especially on iOS, see below).
+2. On Wi-Fi: *Menu → Download*.
+3. On the road: *Start GPS*.
 
-### Updates ausrollen
+### Rolling out updates
 
-Bei Änderungen an App-Dateien in `sw.js` die Konstante `SHELL_CACHE` hochzählen (aktuell `shell-v5`),
-sonst liefert der Service Worker weiter die alte Version aus dem Cache. Die Offline-Karten (`tiles-v1`)
-bleiben bei Updates erhalten.
+When app files change, bump the `SHELL_CACHE` constant in `sw.js` (currently `shell-v6`),
+otherwise the service worker keeps serving the old version from the cache. Offline maps (`tiles-v1`)
+are preserved across updates.
 
 ---
 
-## Bedienung
+## Usage
 
-| Element | Funktion |
+| Element | Function |
 |---|---|
-| **GPS starten/stoppen** | Startet `watchPosition` mit hoher Genauigkeit und hält den Bildschirm an |
-| **Folgen** | Karte zentriert auf die eigene Position. Wird automatisch deaktiviert, sobald man die Karte verschiebt |
-| **Steigung** | Schaltet zwischen Layerfarben und Steigungsfarben um, blendet die Legende ein (wird gespeichert) |
-| **Ebenen-Menü** (oben rechts) | Kartentyp wählen; Streckengruppen und POIs ein-/ausblenden (wird gespeichert) |
-| **Menü** | Panel mit Offline-Download, Toleranz, Steigungsskala, GPX-Upload, Simulation, Speicheranzeige, Löschen |
+| **Start/Stop GPS** | Starts `watchPosition` with high accuracy and keeps the screen on |
+| **Follow** | Centres the map on your position. Turned off automatically as soon as you pan the map |
+| **Slope** | Switches between layer colours and slope colours, shows the legend (persisted) |
+| **Layer menu** (top right) | Choose the map type; show/hide track groups and POIs (persisted) |
+| **Menu** | Panel with offline download, tolerance, slope scale, GPX upload, simulation, storage info, delete |
 
-**Wichtig:** Ausgeblendete Streckengruppen werden weder für „auf Strecke“ berücksichtigt
-noch heruntergeladen. So lassen sich Prüfung und Downloadmenge steuern.
+**Important:** Hidden track groups are neither considered for "on track" nor downloaded.
+This lets you control both the check and the download size.
 
-### Download-Grössen (alle Gruppen eingeblendet, Korridor ± 400 m)
+### Download sizes (all groups visible, corridor ± 400 m)
 
-| Zoomstufen | Kacheln | ca. Grösse |
+| Zoom levels | Tiles | approx. size |
 |---|---|---|
 | 12–16 | 588 | 11.5 MB |
-| 12–17 (empfohlen) | 1927 | 38 MB |
+| 12–17 (recommended) | 1927 | 38 MB |
 | 12–18 | 6778 | 130 MB |
 
-Die Grösse ist mit 20 KB pro Kachel geschätzt (`AVG_TILE_KB`); im ersten Test waren Esri-Kacheln
-im Schnitt kleiner (~10 KB). Bereits vorhandene Kacheln werden beim erneuten Download übersprungen.
+The size is estimated at 20 KB per tile (`AVG_TILE_KB`); in the first test Esri tiles were
+smaller on average (~10 KB). Tiles that are already cached are skipped on repeated downloads.
 
 ---
 
-## Architektur
+## Architecture
 
-### Offline-Konzept
+### Offline concept
 
 ```
-               ┌───────────────────── Service Worker (sw.js) ─────────────────────┐
-App-Dateien ──►│ shell-vN:  cache first + Aktualisierung im Hintergrund            │
+               ┌───────────────────── Service worker (sw.js) ─────────────────────┐
+App files ────►│ shell-vN:  cache first + background update                        │
                │            (stale-while-revalidate)                               │
-Kacheln ──────►│ tiles-v1:  cache first; online angesehene Kacheln werden          │
-               │            mitgespeichert; offline + fehlend → leere 504-Antwort  │
+Tiles ────────►│ tiles-v1:  cache first; tiles viewed online are                   │
+               │            stored too; offline + missing → empty 504 response     │
                └───────────────────────────────────────────────────────────────────┘
 ```
 
-- **Leaflet weiss nichts vom Offline-Modus.** Es fordert normale Kachel-URLs an. Der Service Worker
-  fängt sie ab und liefert aus dem Cache. Dadurch braucht es kein Leaflet-Offline-Plugin.
-- **Die Kachel-URL ist der Cache-Schlüssel.** Sie muss beim Download (`app.js`) und beim Anzeigen
-  identisch sein. Deshalb gibt es keine wechselnden Subdomains (`{s}`), Google läuft fest über `mt1`.
-- **CORS statt opaker Responses:** Alle Kachelserver senden `Access-Control-Allow-Origin: *`
-  (per `curl` geprüft). Leaflet lädt mit `crossOrigin: true`, der Download mit `mode: 'cors'`.
-  Opake Antworten (`no-cors`) würde Chrome pro Kachel mit ~7 MB Quota verbuchen, der Speicher
-  wäre nach ~100 Kacheln voll.
-- `navigator.storage.persist()` wird vor dem Download angefordert, damit der Browser die Karten
-  bei Speichermangel nicht automatisch löscht.
+- **Leaflet knows nothing about offline mode.** It requests normal tile URLs. The service worker
+  intercepts them and serves from the cache. No Leaflet offline plugin is needed.
+- **The tile URL is the cache key.** It must be identical when downloading (`app.js`) and when
+  displaying. That's why there are no rotating subdomains (`{s}`); Google always uses `mt1`.
+- **CORS instead of opaque responses:** All tile servers send `Access-Control-Allow-Origin: *`
+  (verified with `curl`). Leaflet loads with `crossOrigin: true`, the download with `mode: 'cors'`.
+  Chrome would count opaque responses (`no-cors`) as ~7 MB of quota per tile, so storage would be
+  full after ~100 tiles.
+- `navigator.storage.persist()` is requested before downloading, so the browser doesn't
+  automatically evict the maps when storage runs low.
 
-### Kachel-Korridor
+### Tile corridor
 
-`corridorTiles()` berechnet für jede Zoomstufe alle Kacheln, die innerhalb von ± Puffer um eine
-Strecke oder einen POI liegen:
+`corridorTiles()` computes, for each zoom level, all tiles within ± buffer of a track or a POI:
 
-1. Strecken verdichten: zwischen zwei Stützpunkten nie mehr als `Puffer / 2` Abstand,
-   sonst entstehen auf langen geraden Segmenten Lücken.
-2. Für jeden Punkt ein Rechteck ± Puffer bilden und die überdeckten Kacheln (Web-Mercator-Formel) sammeln.
-3. Pro Zoomstufe deduplizieren (`Set`). Überlappende Strecken kosten dadurch nichts extra.
+1. Densify tracks: never more than `buffer / 2` between two samples,
+   otherwise long straight segments leave gaps.
+2. Build a rectangle ± buffer around each point and collect the covered tiles (Web Mercator formula).
+3. Deduplicate per zoom level (`Set`). Overlapping tracks therefore cost nothing extra.
 
-Der Download läuft mit 6 parallelen Anfragen (`DOWNLOAD_CONCURRENCY`) und lässt sich abbrechen.
+The download runs with 6 parallel requests (`DOWNLOAD_CONCURRENCY`) and can be cancelled.
 
-### „Auf Strecke“-Prüfung
+### "On track" check
 
-- `nearestOnNetwork()`: Abstand Punkt → Segment für alle Segmente aller sichtbaren Strecken
-  (~7000, alle Werte durchrechnen dauert < 1 ms pro GPS-Messung).
-- Abstandsberechnung über eine lokale flache Projektion um die eigene Position: auf wenigen km
-  praktisch exakt und deutlich günstiger als Kugelgeometrie pro Segment.
-- **Hysterese:** „Abseits“ erst nach 2 aufeinanderfolgenden Messungen ausserhalb der Toleranz
-  (`OFF_CONFIRM_FIXES`), damit einzelne GPS-Ausreisser keinen Alarm auslösen.
-- Genauigkeit > 50 m (`WEAK_ACCURACY_M`) → oranger Status „GPS ungenau“.
+- `nearestOnNetwork()`: point → segment distance for all segments of all visible tracks
+  (~7000; computing all of them takes < 1 ms per GPS fix).
+- Distances use a local flat projection around the current position: practically exact over a
+  few km and much cheaper than spherical geometry per segment.
+- **Hysteresis:** "Off track" only after 2 consecutive fixes outside the tolerance
+  (`OFF_CONFIRM_FIXES`), so single GPS outliers don't trigger an alarm.
+- Accuracy > 50 m (`WEAK_ACCURACY_M`) → orange status "GPS inaccurate".
 
-### Steigungsfarben
+### Slope colours
 
-**Datenlage (gemessen 19.10.2026, Steigung über 50-m-Abschnitte):** Das Gelände ist flach.
+**Data (measured 19 Oct 2026, slope over 50 m sections):** The terrain is flat.
 
-| Kennzahl | Steigung |
+| Metric | Slope |
 |---|---|
 | Median | 1.2 % |
-| 75 % der Strecke unter | 2.2 % |
-| 90 % unter | 3.5 % |
-| 95 % unter | 4.6 % |
-| 99 % unter | 9.1 % |
-| Maximum | ~16 % (Flussübergang beim Forest Loop, `forestloop-tommysview-3`) |
+| 75 % of the distance below | 2.2 % |
+| 90 % below | 3.5 % |
+| 95 % below | 4.6 % |
+| 99 % below | 9.1 % |
+| Maximum | ~16 % (river crossing near Forest Loop, `forestloop-tommysview-3`) |
 
-**Berechnung** (`slopes()`, `slopeSegments()` in `app.js`):
+**Computation** (`slopes()`, `slopeSegments()` in `app.js`):
 
-1. **Glätten:** GPS-Höhen rauschen um einige Meter. Die Steigung an jedem Punkt wird deshalb über ein
-   Fenster von ±30 m gemessen (`SLOPE_WINDOW_M` = 60), nicht von Punkt zu Punkt. Sonst würde die Linie
-   bunt flackern, und ein Höhensprung von 2 m auf 5 m Distanz ergäbe absurde 40 %.
-2. **Abschnitte:** Die Strecke wird in Abschnitte von mind. 25 m (`SLOPE_SEGMENT_M`) zerlegt, jeder mit
-   der mittleren Steigung als Farbe. Ergibt ~3000 Teillinien statt 7000 und bleibt flüssig.
-3. **Farbe:** Betrag der Steigung → Farbverlauf grün (0 %) → gelbgrün → gelb → orange → rot
-   (`SLOPE_STOPS`). Bergauf und bergab werden gleich gefärbt, der Tooltip zeigt die Richtung (↗/↘)
-   bezogen auf die Aufzeichnungsrichtung.
+1. **Smoothing:** GPS elevations are noisy by a few metres. The slope at each point is therefore
+   measured over a window of ±30 m (`SLOPE_WINDOW_M` = 60), not point to point. Otherwise the line
+   would flicker in many colours, and an elevation jump of 2 m over 5 m would yield an absurd 40 %.
+2. **Sections:** The track is split into sections of at least 25 m (`SLOPE_SEGMENT_M`), each coloured
+   by its mean slope. That gives ~3000 polylines instead of 7000 and stays smooth.
+3. **Colour:** Absolute slope → gradient green (0 %) → yellow-green → yellow → orange → red
+   (`SLOPE_STOPS`). Uphill and downhill get the same colour; the tooltip shows the direction (↗/↘)
+   relative to the recording direction.
 
-**Skala:** Weil fast alles unter 5 % liegt, wäre eine Skala bis 20 % fast komplett grün. Standard ist
-daher **0–10 %** (ab 10 % rot, 5 % = gelb). Im Menü umstellbar: 0–6 % (betont kleine Unterschiede),
-0–10 %, 0–16 %.
+**Scale:** Since almost everything is below 5 %, a scale up to 20 % would be almost entirely green.
+The default is therefore **0–10 %** (red from 10 %, 5 % = yellow). Adjustable in the menu: 0–6 %
+(emphasises small differences), 0–10 %, 0–16 %.
 
-**Grenzen:**
+**Limitations:**
 
-- **Barometrische vs. GPS-Höhe:** Garmin-Geräte mit Barometer liefern recht gute Höhen, reine GPS-Höhen
-  sind deutlich ungenauer. In gpx.studio gezeichnete Strecken (`Manually-Added`) haben Höhen aus einem
-  Höhenmodell. Die Qualität kann sich also je nach Quelle unterscheiden.
-- Kurze, steile Stücke (z.B. eine 10 m lange Rampe ins Flussbett) werden durch die Glättung abgeschwächt.
-  Für den Zweck (steile Abschnitte erkennen) ist das gewollt.
-- Eigene, hochgeladene GPX-Dateien werden aktuell ohne Höhen eingelesen und bleiben im Steigungsmodus
-  in der Layerfarbe.
+- **Barometric vs. GPS elevation:** Garmin devices with a barometer provide fairly good elevations; pure
+  GPS elevations are considerably less accurate. Tracks drawn in gpx.studio (`Manually-Added`) get
+  their elevations from a terrain model. Quality may therefore differ by source.
+- Short steep pieces (e.g. a 10 m ramp into a riverbed) are attenuated by the smoothing.
+  For the purpose (spotting steep sections) this is intended.
+- Uploaded custom GPX files are currently read without elevations and stay in their layer colour
+  in slope mode.
 
-### Gespeicherter Zustand (`localStorage`)
+### Persisted state (`localStorage`)
 
-| Schlüssel | Inhalt |
+| Key | Content |
 |---|---|
-| `layer` | Gewählter Kartentyp |
-| `hiddenGroups` | Ausgeblendete Streckengruppen (JSON-Array) |
-| `poisHidden` | `'1'` wenn POIs ausgeblendet |
-| `roadsHidden` | `'1'` wenn Strassennamen ausgeblendet |
-| `colorMode` | `'layer'` (Layerfarben) oder `'slope'` (Steigungsfarben) |
-| `slopeMax` | Steigungsskala in %, ab der rot gefärbt wird (`6` / `10` / `16`) |
-| `customGpx`, `customGpxName` | Hochgeladene eigene GPX (ersetzt das Standard-Netz) |
+| `layer` | Selected map type |
+| `hiddenGroups` | Hidden track groups (JSON array) |
+| `poisHidden` | `'1'` if POIs are hidden |
+| `roadsHidden` | `'1'` if road names are hidden |
+| `colorMode` | `'layer'` (layer colours) or `'slope'` (slope colours) |
+| `slopeMax` | Slope scale in % from which red is used (`6` / `10` / `16`) |
+| `customGpx`, `customGpxName` | Uploaded custom GPX (replaces the default network) |
 
 ---
 
-## Konfiguration
+## Configuration
 
 In `app.js`:
 
-| Konstante | Standard | Bedeutung |
+| Constant | Default | Meaning |
 |---|---|---|
-| `LAYERS` | 4 Quellen | Kartenquellen; `downloadable: false` sperrt den Offline-Download |
-| `NETWORK_URL` | `data/network.json` | Strecken + POIs |
-| `TILE_CACHE` | `tiles-v1` | Cache-Name der Kacheln (muss mit `sw.js` übereinstimmen) |
-| `AVG_TILE_KB` | 20 | Annahme für die Grössenschätzung |
-| `DOWNLOAD_CONCURRENCY` | 6 | Parallele Downloads |
-| `WEAK_ACCURACY_M` | 50 | Ab dieser GPS-Ungenauigkeit (m) Status orange |
-| `OFF_CONFIRM_FIXES` | 2 | Messungen in Folge bis „Abseits“ |
-| `GROUP_COLORS` | 9 Farben | Farben der Streckengruppen (auf Satellitenbild gut sichtbar) |
-| `SLOPE_STOPS` | grün → rot | Farbverlauf der Steigung (Position 0–1 auf der Skala → RGB) |
-| `SLOPE_WINDOW_M` | 60 | Fensterbreite in m zum Glätten der Höhen |
-| `SLOPE_SEGMENT_M` | 25 | Mindestlänge eines gleichfarbigen Abschnitts |
+| `LAYERS` | 4 sources | Map sources; `downloadable: false` blocks offline download |
+| `NETWORK_URL` | `data/network.json` | Tracks + POIs |
+| `TILE_CACHE` | `tiles-v1` | Cache name for tiles (must match `sw.js`) |
+| `AVG_TILE_KB` | 20 | Assumption for the size estimate |
+| `DOWNLOAD_CONCURRENCY` | 6 | Parallel downloads |
+| `WEAK_ACCURACY_M` | 50 | GPS inaccuracy (m) from which the status turns orange |
+| `OFF_CONFIRM_FIXES` | 2 | Consecutive fixes until "off track" |
+| `GROUP_COLORS` | 9 colours | Track group colours (clearly visible on satellite imagery) |
+| `SLOPE_STOPS` | green → red | Slope gradient (position 0–1 on the scale → RGB) |
+| `SLOPE_WINDOW_M` | 60 | Window width in m for smoothing elevations |
+| `SLOPE_SEGMENT_M` | 25 | Minimum length of a single-colour section |
+| `ROAD_SNAP_M` | 150 | Max. distance at which a road name snaps onto a track |
+| `POI_LABEL_MIN_ZOOM` / `ROAD_LABEL_MIN_ZOOM` | 14 / 15 | Zoom from which POI / road labels appear |
 
-In der App einstellbar: Toleranz (15 / 25 / 40 / 75 m), Zoomstufen und Korridorbreite für den Download,
-Steigungsskala (0–6 / 0–10 / 0–16 %).
+Adjustable in the app: tolerance (15 / 25 / 40 / 75 m), zoom levels and corridor width for the download,
+slope scale (0–6 / 0–10 / 0–16 %).
 
-In `sw.js`: `SHELL_CACHE` (bei Updates hochzählen), `SHELL` (Liste der Offline-Dateien),
-`TILE_HOSTS` (welche Hosts als Kacheln behandelt werden).
-
----
-
-## Erkenntnisse & Stolpersteine
-
-### Technisch
-
-- **TDZ-Fehler beim ersten Test:** `const $ = …` war erst nach dem Karten-Code definiert, wurde dort
-  aber schon verwendet → „Cannot access '$' before initialization“, das Skript brach beim Start ab
-  und der Service Worker wurde nie registriert. Helfer stehen deshalb jetzt ganz oben in `app.js`.
-- **Reihenfolge beim Ersetzen des Wegnetzes:** Beim Laden einer eigenen GPX muss zuerst das
-  Ebenen-Menü entfernt werden und erst dann die Linien. Sonst feuert Leaflet für jede entfernte
-  Linie `overlayremove`, und alle Gruppen würden dauerhaft als „ausgeblendet“ gespeichert.
-- **Ein Browser kann keinen Ordner auflisten.** Deshalb gibt es das Build-Skript statt
-  „lade alles aus `gpx-source/`“ zur Laufzeit. Nebeneffekt: eine kleine Datei statt 31 grosser.
-- **Original-GPX schlank machen:** Garmin-Exporte enthalten pro Punkt Zeit, Puls und Temperatur.
-  Ohne diese schrumpfen die Daten etwa um Faktor 5–17.
-
-### Fachlich: POIs und Strassennamen
-
-- **POIs gehören in GPX als `<wpt>`.** Das ist Standard, wird von Garmin, Komoot, OsmAnd und gpx.studio unterstützt.
-- **Strassennamen besser nicht in die Strecken-GPX.** GPX kennt keine benannten Abschnitte.
-  Strassennamen beschreiben das *Wegnetz*, nicht eine Tour. Empfehlung: eigene Datei
-  (GeoJSON-Linien mit `name`), damit die App „Du bist auf: Majali Loop“ anzeigen kann.
-  Umgesetzt ist eine einfache Variante: die Namen liegen in `roadnames.gpx` als **Punkte**.
-  Die App setzt jeden Punkt auf die nächste Strecke und dreht den Text in deren Richtung.
-  Das reicht für Beschriftungen auf der Karte, aber nicht, um zu erkennen, auf welcher Strasse
-  man ist (dafür braucht es Linien oder eine Zuordnung Name → Teilstrecke).
-- **Textdrehung:** Web-Mercator ist winkeltreu, deshalb lässt sich die Peilung der Strasse direkt
-  in einen CSS-Drehwinkel umrechnen (Peilung − 90°). Der Winkel wird auf (−90°, 90°] begrenzt,
-  damit kein Text auf dem Kopf steht. Die Richtung wird über ±3 Punkte gemittelt, sonst
-  würde GPS-Zittern den Text schief stellen.
-- In der Gegend (Tuli-Block) sind Pisten in OSM oft unbenannt oder fehlen ganz. Lokale Namen
-  müssen voraussichtlich selbst erfasst werden.
+In `sw.js`: `SHELL_CACHE` (bump on updates), `SHELL` (list of offline files),
+`TILE_HOSTS` (which hosts are treated as tiles).
 
 ---
 
-## Rechtliches zu Kartenquellen
+## Lessons learned & pitfalls
 
-| Quelle | Offline-Speicherung | Bemerkung |
+### Technical
+
+- **TDZ error in the first test:** `const $ = …` was defined after the map code but already used
+  there → "Cannot access '$' before initialization"; the script aborted at startup and the
+  service worker was never registered. Helpers are therefore now at the very top of `app.js`.
+- **Order when replacing the network:** When loading a custom GPX, the layer menu must be removed
+  first and only then the lines. Otherwise Leaflet fires `overlayremove` for every removed line
+  and all groups would be persisted as "hidden".
+- **A browser can't list a folder.** That's why there is a build script instead of
+  "load everything from `gpx-source/`" at runtime. Side effect: one small file instead of 31 large ones.
+- **Slimming down the original GPX:** Garmin exports contain time, heart rate and temperature per point.
+  Without them the data shrinks by a factor of roughly 5–17.
+- **Translation to English (19 Oct 2026):** The layer key for tracks directly in `gpx-source/` changed
+  from `sonstige` to `other`, and for uploaded GPX from `eigene` to `custom`. Previously stored
+  hidden-group settings for these two keys are no longer recognised.
+
+### Domain: POIs and road names
+
+- **POIs belong in GPX as `<wpt>`.** This is standard and supported by Garmin, Komoot, OsmAnd and gpx.studio.
+- **Better not to put road names into the track GPX.** GPX has no concept of named sections.
+  Road names describe the *network*, not a tour. Recommendation: a separate file
+  (GeoJSON lines with `name`), so the app can show "You are on: Majali Loop".
+  A simple variant is implemented: the names are stored in `roadnames.gpx` as **points**.
+  The app snaps each point to the nearest track and rotates the text along it.
+  That is enough for map labels, but not to detect which road you are on
+  (that requires lines or a mapping name → track section).
+- **Text rotation:** Web Mercator is conformal, so the road's bearing converts directly into a CSS
+  rotation angle (bearing − 90°). The angle is clamped to (−90°, 90°] so no text is upside down.
+  The direction is averaged over ±3 points, otherwise GPS jitter would tilt the text.
+- In the area (Tuli Block), tracks in OSM are often unnamed or missing entirely. Local names will
+  probably have to be collected manually.
+
+---
+
+## Map sources: legal notes
+
+| Source | Offline storage | Note |
 |---|---|---|
-| **Esri World Imagery** | Technisch möglich | Für produktiven Einsatz ArcGIS-Konto/Lizenz prüfen |
-| **Google (`mt1.google.com`)** | ⚠️ Laut Google-Nutzungsbedingungen **nicht erlaubt** | Für einen privaten PoC technisch machbar. Produktiv: [Google Map Tiles API](https://developers.google.com/maps/documentation/tile) mit API-Key oder anderer Anbieter |
-| **OpenStreetMap** | ❌ Bulk-Download durch die [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) verboten | Nur Online-Anzeige (`downloadable: false`) |
+| **Esri World Imagery** | Technically possible | Check ArcGIS account/licence for production use |
+| **Google (`mt1.google.com`)** | ⚠️ **Not allowed** under Google's terms of service | Technically feasible for a private PoC. For production: [Google Map Tiles API](https://developers.google.com/maps/documentation/tile) with an API key, or another provider |
+| **OpenStreetMap** | ❌ Bulk download prohibited by the [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) | Online display only (`downloadable: false`) |
 
-Lizenzierbare Alternativen für ein Produkt: MapTiler, Mapbox, Esri mit Lizenz, oder eigene
-Kacheln aus frei lizenzierten Satellitendaten (z.B. Sentinel-2, nur ~10 m Auflösung).
-
----
-
-## Plattform-Einschränkungen
-
-- **Kein GPS im Hintergrund:** Eine Web-App erhält keine Positionen, wenn sie im Hintergrund läuft
-  oder der Bildschirm gesperrt ist (besonders strikt unter iOS). Die App hält deshalb den
-  Bildschirm per Wake Lock an. Das kostet Akku: Powerbank mitnehmen.
-- **iOS-Speicher:** Safari kann den Speicher von Websites nach einigen Wochen ohne Nutzung löschen.
-  Als Home-Bildschirm-App ist das deutlich robuster. Vor jeder Tour kurz prüfen, ob die
-  Kacheln noch da sind (Anzeige im Panel: „Offline-Kacheln: N“).
-- **Vibration:** `navigator.vibrate` gibt es unter iOS nicht. Dort nur visueller Alarm.
-- **Wake Lock** wird beim App-Wechsel automatisch freigegeben und bei Rückkehr neu angefordert.
-- Für echtes Hintergrund-Tracking wäre eine native App (oder Capacitor-Wrapper) nötig.
+Licensable alternatives for a product: MapTiler, Mapbox, Esri with a licence, or your own
+tiles from freely licensed satellite data (e.g. Sentinel-2, only ~10 m resolution).
 
 ---
 
-## Offene Punkte & Ideen
+## Platform limitations
 
-- [ ] Test auf echtem Gerät (Android + iOS) mit echtem GPS im Gelände
-- [x] `roadnames.gpx` als gedrehte Beschriftungen ab Zoom 15
-- [ ] „Du bist auf: …“ in der Statuszeile (braucht Zuordnung Strassenname → Strecke)
-- [x] Layer über Ordnerstruktur statt Dateinamen
-- [ ] Feste Farbe pro Layer (z.B. per `layer.json` im Ordner), damit neue Ordner Farben nicht verschieben
-- [ ] Single-Point-Dateien `Dopotta/lexington*.gpx` aufräumen, „Manually Added“-Gerade prüfen
-- [ ] Richtungserkennung (fährt man die Strecke in die geplante Richtung?)
-- [x] Steigung farbig darstellen (grün → rot), mit Legende und umstellbarer Skala
-- [ ] Höhenprofil als Diagramm (Höhen sind jetzt in `network.json` vorhanden)
-- [ ] Höhen auch aus hochgeladenen GPX-Dateien übernehmen
-- [ ] Teilstrecken automatisch verbinden (siehe [Mögliche Erweiterungen](#mögliche-erweiterungen))
-- [ ] 5 offene Enden prüfen: gewollte Sackgasse (→ POI setzen) oder Lücke (→ in gpx.studio nachzeichnen)
-- [ ] Routing zwischen zwei Punkten im Netz (setzt verbundenes Netz voraus, z.B. Dijkstra)
-- [ ] Abzweig-Hinweise („in 200 m links auf …“) aus Wegnetz + Strassennamen
-- [ ] Eigene Position als Track aufzeichnen und als GPX exportieren
-- [ ] POI-Symbole nach `type`/`sym` (Lodge, Hide, View Point, Pan …)
-- [ ] Lizenzierte Kartenquelle für einen produktiven Einsatz
+- **No GPS in the background:** A web app receives no positions while it runs in the background
+  or the screen is locked (particularly strict on iOS). The app therefore keeps the screen on
+  via Wake Lock. This costs battery: bring a power bank.
+- **iOS storage:** Safari may delete website storage after a few weeks of non-use.
+  As a home-screen app this is much more robust. Before each trip, briefly check that the
+  tiles are still there (panel shows "Offline tiles: N").
+- **Vibration:** `navigator.vibrate` doesn't exist on iOS. Visual alarm only there.
+- **Wake Lock** is released automatically when switching apps and requested again on return.
+- Real background tracking would require a native app (or a Capacitor wrapper).
 
 ---
 
-## Mögliche Erweiterungen
+## Open items & ideas
 
-Ausgearbeitete Ideen, die (noch) nicht umgesetzt sind.
+- [ ] Test on a real device (Android + iOS) with real GPS in the field
+- [x] `roadnames.gpx` as rotated labels from zoom 15
+- [ ] "You are on: …" in the status bar (needs a mapping road name → track)
+- [x] Layers via folder structure instead of file names
+- [ ] Fixed colour per layer (e.g. via `layer.json` in the folder), so new folders don't shift colours
+- [ ] Clean up single-point files `Dopotta/lexington*.gpx`, check the straight line in "Manually Added"
+- [ ] Direction detection (are you riding the track in the planned direction?)
+- [x] Show slope in colour (green → red), with legend and adjustable scale
+- [ ] Elevation profile as a chart (elevations are now in `network.json`)
+- [ ] Also read elevations from uploaded GPX files
+- [ ] Connect track sections automatically (see [Possible extensions](#possible-extensions))
+- [ ] Check 5 open ends: intended dead end (→ add a POI) or gap (→ draw it in gpx.studio)
+- [ ] Routing between two points in the network (requires a connected network, e.g. Dijkstra)
+- [ ] Turn hints ("in 200 m turn left onto …") from network + road names
+- [ ] Record your own position as a track and export it as GPX
+- [ ] POI icons by `type`/`sym` (lodge, hide, view point, pan …)
+- [ ] Licensed map source for production use
 
-### Teilstrecken automatisch verbinden (Snapping)
+---
 
-> **Status:** Am 19.10.2026 im Build-Skript prototypisch umgesetzt und getestet, danach bewusst
-> wieder entfernt, weil das Ergebnis noch nicht überzeugt hat. Die Erkenntnisse sind hier festgehalten,
-> damit es später gezielt wieder aufgenommen werden kann.
+## Possible extensions
 
-**Problem:** Die Teilstrecken stammen aus verschiedenen Aufzeichnungen. Ihre Enden treffen sich
-selten exakt, sondern liegen wegen GPS-Ungenauigkeit einige Meter neben der Nachbarstrecke.
-Für die Anzeige spielt das kaum eine Rolle. Für Routing („Weg von A nach B“) und Abzweig-Hinweise
-braucht es aber ein **verbundenes Netz** mit gemeinsamen Knotenpunkten.
+Worked-out ideas that are not (yet) implemented.
 
-**Messung (19.10.2026):** Abstand jedes Streckenendes zur nächsten *anderen* Strecke:
+### Connect track sections automatically (snapping)
 
-| Abstand | Anzahl Enden | Bedeutung |
+> **Status:** Prototyped and tested in the build script on 19 Oct 2026, then deliberately
+> removed again because the result was not yet convincing. The findings are recorded here
+> so it can be picked up again later.
+
+**Problem:** The track sections come from different recordings. Their ends rarely meet exactly
+but lie a few metres next to the neighbouring track due to GPS inaccuracy.
+For display this hardly matters. For routing ("way from A to B") and turn hints, however,
+you need a **connected network** with shared nodes.
+
+**Measurement (19 Oct 2026):** distance from each track end to the nearest *other* track:
+
+| Distance | Number of ends | Meaning |
 |---|---|---|
-| < 1 m | 4 | berühren sich bereits |
-| 1–15 m | 31 | GPS-Ungenauigkeit, eindeutig gleicher Weg |
-| 15–50 m | 4 | wahrscheinlich Anschluss (grösster: 49 m, Jwala → Dopotta) |
-| 50–136 m | 0 | klarer Sprung |
-| ≥ 136 m | 11 | Sackgassen oder echte Lücken |
+| < 1 m | 4 | already touching |
+| 1–15 m | 31 | GPS inaccuracy, clearly the same track |
+| 15–50 m | 4 | probably a junction (largest: 49 m, Jwala → Dopotta) |
+| 50–136 m | 0 | clear jump |
+| ≥ 136 m | 11 | dead ends or real gaps |
 
-(50 Enden = 25 Strecken × 2.) Von den 11 weit entfernten Enden liegen 6 direkt an einem POI (< 150 m) und sind damit gewollte
-Sackgassen: Muwane View Point, Motloutse View Point, Tommy's View Point, Swiss Peak Hill, Tuli Lodge,
-Jwala Lodge. Die übrigen offenen Enden ohne POI:
+(50 ends = 25 tracks × 2.) Of the 11 distant ends, 6 lie right next to a POI (< 150 m) and are
+therefore intended dead ends: Muwane View Point, Motloutse View Point, Tommy's View Point,
+Swiss Peak Hill, Tuli Lodge, Jwala Lodge. The remaining open ends without a POI:
 
-| Strecke | Ende | Abstand | bis |
+| Track | End | Distance | to |
 |---|---|---|---|
-| lexington-5 | Ende | 136 m | lexington-2 |
-| forestloop-tommysview-3 | Ende | 304 m | forestloop-tommysview-1 |
-| manually-added-3 | Ende | 716 m | boabab-2view-points-3 |
-| manually-added-3 | Anfang | 1124 m | forestloop-tommysview-2 |
-| southern-part-dopotta | Ende | 1174 m | southern-part-dopotta-1 |
+| lexington-5 | end | 136 m | lexington-2 |
+| forestloop-tommysview-3 | end | 304 m | forestloop-tommysview-1 |
+| manually-added-3 | end | 716 m | boabab-2view-points-3 |
+| manually-added-3 | start | 1124 m | forestloop-tommysview-2 |
+| southern-part-dopotta | end | 1174 m | southern-part-dopotta-1 |
 
-**Ansatz des Prototyps** (im Build-Skript, Quell-GPX bleiben unverändert):
+**Prototype approach** (in the build script, source GPX files stay unchanged):
 
-1. Für jedes Streckenende den nächsten Punkt auf irgendeiner anderen Strecke suchen, auch über
-   Layer-Grenzen hinweg.
-2. Liegt er näher als ein Schwellenwert (`SNAP_M` = 60 m), das Ende bis genau dorthin verlängern.
-3. Denselben Punkt auch in die Nachbarstrecke einfügen, damit beide einen **exakt gemeinsamen
-   Knoten** haben (sonst nur optisch verbunden).
-4. Alle Abstände auf den Originaldaten berechnen, damit das Ergebnis nicht von der Reihenfolge der
-   Dateien abhängt.
-5. Bericht ausgeben: verbundene Enden, Sackgassen an POIs, offene Enden ohne POI.
+1. For each track end, find the nearest point on any other track, across layer boundaries too.
+2. If it is closer than a threshold (`SNAP_M` = 60 m), extend the end exactly to that point.
+3. Insert the same point into the neighbouring track as well, so both share an **exactly identical
+   node** (otherwise they are only visually connected).
+4. Compute all distances on the original data, so the result does not depend on the order of the files.
+5. Print a report: connected ends, dead ends at POIs, open ends without a POI.
 
-**Ergebnis des Prototyps:** 35 Enden verbunden, alle 25 Strecken bildeten ein zusammenhängendes Netz
-(geprüft über gemeinsame Knoten). Gesamtlänge stieg durch die Verbindungsstücke von 111.5 auf 112.2 km.
+**Prototype result:** 35 ends connected; all 25 tracks formed one connected network
+(verified via shared nodes). Total length grew from 111.5 to 112.2 km due to the connectors.
 
-**Warum (noch) nicht übernommen / offene Fragen:**
+**Why it was not (yet) adopted / open questions:**
 
-- Verbindungsstücke sind **gerade Linien**. Bei 30–50 m Lücke kann das quer durchs Gelände statt
-  entlang des echten Wegs verlaufen.
-- Ein fester Schwellenwert ist heikel: zu klein → Lücken bleiben, zu gross → Sackgassen werden mit
-  parallel verlaufenden Wegen verbunden, die in Wirklichkeit nicht verbunden sind.
-- Die Daten werden „unsichtbar“ verändert: Was in `network.json` steht, entspricht nicht mehr exakt
-  den Quell-GPX.
-- Echter Nutzen entsteht erst mit Routing oder Abzweig-Hinweisen. Ohne diese Funktionen bringt
-  das Verbinden für den Nutzer kaum sichtbaren Mehrwert.
+- Connectors are **straight lines**. With a 30–50 m gap they may cut across the terrain instead
+  of following the real track.
+- A fixed threshold is tricky: too small → gaps remain; too large → dead ends get connected to
+  parallel tracks that aren't actually connected.
+- The data is changed "invisibly": what's in `network.json` no longer matches the source GPX exactly.
+- Real benefit only comes with routing or turn hints. Without those features, connecting
+  provides hardly any visible value for the user.
 
-**Alternativen für später:**
+**Alternatives for later:**
 
-- **Nur prüfen statt verändern:** Das Skript meldet Lücken und offene Enden, die Korrektur passiert
-  von Hand in gpx.studio. Daten bleiben nachvollziehbar.
-- **Strecken auf Kreuzungen zerlegen statt verlängern:** Überlappende Abschnitte (mehrere
-  Aufzeichnungen desselben Wegs) zu einer Mittellinie zusammenfassen. Aufwendiger, aber sauberer.
-- **Fertige Werkzeuge:** z.B. QGIS (Snapping-/Topologie-Werkzeuge, „v.clean“ in GRASS) oder
-  Map-Matching gegen OSM, falls die Wege dort erfasst sind.
-- **Bei Umsetzung** zuerst in der App die Verbindungsstücke sichtbar machen (z.B. gestrichelt),
-  damit man jede automatische Verbindung visuell prüfen kann.
+- **Check instead of modify:** The script reports gaps and open ends; corrections are made by hand
+  in gpx.studio. Data stays traceable.
+- **Split tracks at junctions instead of extending them:** Merge overlapping sections (several
+  recordings of the same track) into one centreline. More work, but cleaner.
+- **Existing tools:** e.g. QGIS (snapping/topology tools, `v.clean` in GRASS) or
+  map matching against OSM, if the tracks are mapped there.
+- **When implementing**, first make the connectors visible in the app (e.g. dashed),
+  so every automatic connection can be checked visually.

@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Fasst alle GPX-Dateien aus gpx-source/ zu data/network.json zusammen.
+"""Combines all GPX files from gpx-source/ into data/network.json.
 
-- Tracks (<trkseg>) aus allen Dateien -> "tracks". Jeder Unterordner von
-  gpx-source/ ist ein Layer: alle GPX darin (auch in tieferen Ordnern) werden
-  in der App in derselben Farbe gezeichnet und gemeinsam ein-/ausgeblendet.
-  Der Ordnername wird zum Anzeigenamen ("Dopotta-to-Tuli" -> "Dopotta to Tuli").
-  Tracks direkt in gpx-source/ landen im Layer "Sonstige".
-- Wegpunkte (<wpt>) aus allen Dateien -> "pois"
-- Wegpunkte aus roadnames.gpx -> "roads" (Strassennamen; die App setzt das
-  Label auf die nächste Strecke und dreht es in Strassenrichtung)
-- Zeit, Puls, Temperatur usw. werden verworfen, Koordinaten auf 6 Stellen
-  (~10 cm) gerundet, aufeinanderfolgende Duplikate entfernt.
-- Höhen (<ele>) werden pro Punkt als "ele" mitgegeben (0.1 m), sofern jeder
-  Punkt der Strecke eine Höhe hat. Daraus berechnet die App die Steigung.
+- Tracks (<trkseg>) from all files -> "tracks". Each subfolder of
+  gpx-source/ is one layer: all GPX files in it (including deeper folders)
+  are drawn in the same colour in the app and toggled together.
+  The folder name becomes the display name ("Dopotta-to-Tuli" -> "Dopotta to Tuli").
+  Tracks directly in gpx-source/ end up in the layer "Other".
+- Waypoints (<wpt>) from all files -> "pois"
+- Waypoints from roadnames.gpx -> "roads" (road names; the app places the
+  label on the nearest track and rotates it along the road)
+- Time, heart rate, temperature etc. are dropped, coordinates rounded to
+  6 decimals (~10 cm), consecutive duplicates removed.
+- Elevations (<ele>) are kept per point as "ele" (0.1 m), provided every
+  point of the track has one. The app derives the slope from them.
 
-Aufruf (im Projektordner):  python3 tools/build_network.py
-Nach jeder Änderung in gpx-source/ erneut ausführen.
+Usage (from the project folder):  python3 tools/build_network.py
+Run again after every change in gpx-source/.
 """
 
 import json
@@ -39,10 +39,10 @@ def text(el, tag):
 
 
 def layer_of(path):
-    """Oberster Unterordner relativ zu gpx-source/ -> (key, Anzeigename)."""
+    """Top-level subfolder relative to gpx-source/ -> (key, display name)."""
     parts = path.relative_to(SOURCE).parts
     if len(parts) == 1:
-        return "sonstige", "Sonstige"
+        return "other", "Other"
     folder = parts[0]
     return folder.lower(), re.sub(r"[-_]+", " ", folder)
 
@@ -110,18 +110,18 @@ def main():
     }, separators=(",", ":"), ensure_ascii=False))
 
     points = sum(len(t["coords"]) for t in tracks)
-    print(f"{len(tracks)} Tracks ({points} Punkte), {len(pois)} POIs, {len(roads)} Strassennamen "
+    print(f"{len(tracks)} tracks ({points} points), {len(pois)} POIs, {len(roads)} road names "
           f"-> {TARGET.relative_to(ROOT)} ({TARGET.stat().st_size // 1024} KB)")
     no_ele = [t["id"] for t in tracks if "ele" not in t]
     if no_ele:
-        print("Ohne vollständige Höhendaten (keine Steigungsfarben):", ", ".join(no_ele), file=sys.stderr)
+        print("Without complete elevation data (no slope colours):", ", ".join(no_ele), file=sys.stderr)
     layers = {}
     for t in tracks:
         layers[t["label"]] = layers.get(t["label"], 0) + 1
     for label, n in layers.items():
-        print(f"  Layer {label}: {n} Tracks")
+        print(f"  Layer {label}: {n} tracks")
     if skipped:
-        print("Übersprungen (keine Strecke / < 2 Punkte):", ", ".join(skipped), file=sys.stderr)
+        print("Skipped (no track / < 2 points):", ", ".join(skipped), file=sys.stderr)
 
 
 if __name__ == "__main__":

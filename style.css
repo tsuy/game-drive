@@ -92,7 +92,7 @@ button:disabled { opacity: .5; }
 .hint { font-size: .85rem; color: #666; }
 .mono { font-family: ui-monospace, Menlo, monospace; font-size: .85rem; color: #333; }
 
-/* Ebenen-Menü: Farbfeld je Streckengruppe */
+/* Layer menu: colour swatch per track group */
 .leaflet-control-layers-overlays label { font-size: .95rem; margin: 4px 0; }
 .leaflet-control-layers-overlays small { color: #777; }
 .swatch {
@@ -103,7 +103,7 @@ button:disabled { opacity: .5; }
   outline: 1px solid rgba(0, 0, 0, .4);
 }
 
-/* POI-Pin: Tropfenform per gedrehtem Quadrat */
+/* POI pin: teardrop shape from a rotated square */
 .poi-pin {
   width: 22px; height: 22px;
   margin: 0 2px;
@@ -125,7 +125,7 @@ button:disabled { opacity: .5; }
 .poi-label::before { display: none; }
 .hide-poi-labels .poi-label { display: none; }
 
-/* Strassenname: nur Text mit dunklem Halo, entlang der Strasse gedreht */
+/* Road name: text only with a dark halo, rotated along the road */
 .road-label { pointer-events: none; }
 .road-label span {
   position: absolute;
@@ -139,7 +139,7 @@ button:disabled { opacity: .5; }
 }
 .hide-road-labels .road-label { display: none; }
 
-/* Steigungslegende unten links über der Massstabsleiste */
+/* Slope legend, bottom left above the scale bar */
 .legend {
   position: fixed;
   left: 8px;

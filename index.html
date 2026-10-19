@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -18,38 +18,38 @@
   <div id="map"></div>
 
   <header id="status" class="status idle">
-    <div class="status-main" id="statusText">GPS aus</div>
+    <div class="status-main" id="statusText">GPS off</div>
     <div class="status-sub" id="statusSub">Route: –</div>
   </header>
 
   <div id="legend" class="legend" hidden>
-    <div class="legend-title">Steigung</div>
+    <div class="legend-title">Slope</div>
     <div id="legendBar" class="legend-bar"></div>
     <div class="legend-scale"><span>0 %</span><span id="legendMid"></span><span id="legendMax"></span></div>
   </div>
 
   <nav class="controls">
-    <button id="btnGps" class="primary">GPS starten</button>
-    <button id="btnFollow" aria-pressed="true" title="Karte folgt Position">Folgen</button>
-    <button id="btnColor" aria-pressed="false" title="Strecken nach Steigung einfärben">Steigung</button>
-    <button id="btnPanel">Menü</button>
+    <button id="btnGps" class="primary">Start GPS</button>
+    <button id="btnFollow" aria-pressed="true" title="Map follows your position">Follow</button>
+    <button id="btnColor" aria-pressed="false" title="Colour tracks by slope">Slope</button>
+    <button id="btnPanel">Menu</button>
   </nav>
 
   <section id="panel" class="panel" hidden>
-    <h2>Offline-Karten</h2>
-    <p class="hint">Lädt Kartenkacheln in einem Korridor entlang aller eingeblendeten Strecken und um die POIs auf das Gerät. Am besten im WLAN ausführen.</p>
+    <h2>Offline maps</h2>
+    <p class="hint">Downloads map tiles to the device in a corridor along all visible tracks and around the POIs. Best done on Wi-Fi.</p>
 
-    <label>Kartentyp
+    <label>Map type
       <select id="dlLayer"></select>
     </label>
-    <label>Zoomstufen
+    <label>Zoom levels
       <select id="dlZoom">
-        <option value="12-16">12–16 (Übersicht, klein)</option>
-        <option value="12-17" selected>12–17 (empfohlen)</option>
-        <option value="12-18">12–18 (Detail, gross)</option>
+        <option value="12-16">12–16 (overview, small)</option>
+        <option value="12-17" selected>12–17 (recommended)</option>
+        <option value="12-18">12–18 (detail, large)</option>
       </select>
     </label>
-    <label>Korridor-Breite
+    <label>Corridor width
       <select id="dlBuffer">
         <option value="200">± 200 m</option>
         <option value="400" selected>± 400 m</option>
@@ -62,12 +62,12 @@
     <p id="dlState" class="mono"></p>
 
     <div class="row">
-      <button id="btnDownload" class="primary">Herunterladen</button>
-      <button id="btnAbort" hidden>Abbrechen</button>
+      <button id="btnDownload" class="primary">Download</button>
+      <button id="btnAbort" hidden>Cancel</button>
     </div>
 
-    <h2>Einstellungen</h2>
-    <label>Toleranz „auf Strecke“
+    <h2>Settings</h2>
+    <label>“On track” tolerance
       <select id="tolerance">
         <option value="15">15 m</option>
         <option value="25" selected>25 m</option>
@@ -75,27 +75,27 @@
         <option value="75">75 m</option>
       </select>
     </label>
-    <label>Steigungsskala (ab diesem Wert rot)
+    <label>Slope scale (red from this value)
       <select id="slopeMax">
-        <option value="6">0–6 % (betont kleine Steigungen)</option>
-        <option value="10" selected>0–10 % (empfohlen)</option>
+        <option value="6">0–6 % (emphasises small slopes)</option>
+        <option value="10" selected>0–10 % (recommended)</option>
         <option value="16">0–16 %</option>
       </select>
     </label>
-    <label>Eigene GPX statt Standard-Strecken laden
+    <label>Load custom GPX instead of default tracks
       <input type="file" id="gpxFile" accept=".gpx,application/gpx+xml">
     </label>
     <div class="row">
-      <button id="btnResetNetwork" hidden>Standard-Strecken wiederherstellen</button>
+      <button id="btnResetNetwork" hidden>Restore default tracks</button>
     </div>
 
     <p id="storage" class="mono"></p>
     <div class="row">
-      <button id="btnSim">Simulation starten</button>
-      <button id="btnClear" class="danger">Offline-Karten löschen</button>
+      <button id="btnSim">Start simulation</button>
+      <button id="btnClear" class="danger">Delete offline maps</button>
     </div>
     <div class="row">
-      <button id="btnClose">Schliessen</button>
+      <button id="btnClose">Close</button>
     </div>
   </section>
 

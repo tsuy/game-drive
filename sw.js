@@ -1,10 +1,10 @@
 'use strict';
 
-// App-Shell-Version: bei Änderungen an den Dateien unten hochzählen,
-// damit Clients die neue Version erhalten.
-const SHELL_CACHE = 'shell-v5';
-// Muss mit TILE_CACHE in app.js übereinstimmen. Wird bei Shell-Updates NICHT
-// gelöscht, damit heruntergeladene Karten erhalten bleiben.
+// App shell version: bump whenever the files below change,
+// so clients pick up the new version.
+const SHELL_CACHE = 'shell-v6';
+// Must match TILE_CACHE in app.js. NOT deleted on shell updates,
+// so downloaded maps survive.
 const TILE_CACHE = 'tiles-v1';
 
 const SHELL = [
@@ -60,8 +60,8 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// Kacheln: Cache first. Kacheln, die man online anschaut, werden zusätzlich
-// gespeichert (nur CORS-Responses, opake würden das Quota aufblähen).
+// Tiles: cache first. Tiles viewed while online are stored as well
+// (CORS responses only; opaque ones would bloat the quota).
 async function tileStrategy(req) {
   const cache = await caches.open(TILE_CACHE);
   const hit = await cache.match(req.url);
@@ -71,13 +71,13 @@ async function tileStrategy(req) {
     if (res.ok && res.type === 'cors') cache.put(req.url, res.clone());
     return res;
   } catch {
-    // Offline und nicht im Cache: leere Antwort statt Netzwerkfehler,
-    // Leaflet zeigt dann einfach eine graue Kachel.
+    // Offline and not cached: empty response instead of a network error,
+    // Leaflet then simply shows a grey tile.
     return new Response('', { status: 504, statusText: 'offline' });
   }
 }
 
-// App-Shell: Cache first, im Hintergrund aktualisieren (stale-while-revalidate)
+// App shell: cache first, update in the background (stale-while-revalidate)
 async function shellStrategy(req) {
   const cache = await caches.open(SHELL_CACHE);
   const hit = await cache.match(req, { ignoreSearch: true });
