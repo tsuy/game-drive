@@ -116,8 +116,88 @@ function prepTrack(t) {
   const pts = t.coords.map(([lat, lon]) => ({ lat, lon }));
   const cum = [0];
   for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + haversine(pts[i - 1], pts[i]));
-  return { id: t.id, group: t.group, label: t.label, pts, cum, length: cum[cum.length - 1] };
+  return { id: t.id, group: t.group, label: t.label, pts, cum, ele: t.ele, length: cum[cum.length - 1] };
 }
+
+// ---------------------------------------------------------------------------
+// Steigung
+// ---------------------------------------------------------------------------
+
+// Steigungsfarben: grün (flach) -> gelb -> orange -> rot (steil).
+// Das Gelände ist flach (Median ~1 %, 95 % der Strecke < 5 %, max ~15 %),
+// deshalb ist die Skala standardmässig 0–10 %: ab SLOPE_MAX ist alles rot.
+const SLOPE_STOPS = [
+  [0.0, [46, 204, 64]],   // grün
+  [0.3, [163, 230, 53]],  // gelbgrün
+  [0.5, [255, 220, 0]],   // gelb
+  [0.7, [255, 140, 0]],   // orange
+  [1.0, [230, 20, 20]],   // rot
+];
+// GPS-Höhen rauschen um einige Meter. Steigung daher über ein Fenster von
+// ±SLOPE_WINDOW_M/2 messen statt von Punkt zu Punkt (sonst Farbflackern).
+const SLOPE_WINDOW_M = 60;
+// Die Linie wird in Abschnitte gleicher Farbe zerlegt: Mindestlänge eines
+// Abschnitts, damit nicht tausende Mini-Polylines entstehen.
+const SLOPE_SEGMENT_M = 25;
+
+const slopeMax = () => Number($('slopeMax').value);
+
+function slopeColor(pct) {
+  const x = Math.min(1, Math.abs(pct) / slopeMax());
+  let i = 1;
+  while (i < SLOPE_STOPS.length - 1 && x > SLOPE_STOPS[i][0]) i++;
+  const [x0, c0] = SLOPE_STOPS[i - 1], [x1, c1] = SLOPE_STOPS[i];
+  const f = (x - x0) / (x1 - x0);
+  const rgb = c0.map((v, k) => Math.round(v + f * (c1[k] - v)));
+  return `rgb(${rgb.join(',')})`;
+}
+
+// Steigung in % an jedem Punkt (Vorzeichen: + bergauf in Aufzeichnungsrichtung)
+function slopes(track) {
+  const { cum, ele } = track;
+  const n = cum.length, half = SLOPE_WINDOW_M / 2, out = new Array(n);
+  let a = 0, b = 0;
+  for (let i = 0; i < n; i++) {
+    while (cum[i] - cum[a] > half) a++;
+    while (b < n - 1 && cum[b + 1] - cum[i] <= half) b++;
+    const d = cum[b] - cum[a];
+    out[i] = d > 5 ? ((ele[b] - ele[a]) / d) * 100 : 0;
+  }
+  return out;
+}
+
+// Zerlegt eine Strecke in Abschnitte von mind. SLOPE_SEGMENT_M mit je einer
+// mittleren Steigung -> [{latlngs, pct}]
+function slopeSegments(track) {
+  const s = slopes(track);
+  const { pts, cum } = track;
+  const segs = [];
+  let start = 0;
+  for (let i = 1; i < pts.length; i++) {
+    if (cum[i] - cum[start] < SLOPE_SEGMENT_M && i < pts.length - 1) continue;
+    let sum = 0;
+    for (let k = start; k <= i; k++) sum += s[k];
+    segs.push({
+      latlngs: pts.slice(start, i + 1).map((p) => [p.lat, p.lon]),
+      pct: sum / (i - start + 1),
+    });
+    start = i;
+  }
+  return segs;
+}
+
+function climbStats(track) {
+  if (!track.ele) return null;
+  let up = 0, down = 0;
+  const s = slopes(track);
+  for (let i = 1; i < track.ele.length; i++) {
+    const d = track.ele[i] - track.ele[i - 1];
+    if (d > 0) up += d; else down -= d;
+  }
+  return { up, down, max: Math.max(...s.map(Math.abs)) };
+}
+
+const colorMode = () => localStorage.getItem('colorMode') || 'layer';
 
 // Eigene GPX-Datei (Upload) ins gleiche Format wie network.json bringen
 function parseGpx(text, fileName) {
@@ -158,12 +238,7 @@ function setNetwork({ tracks, pois, roads = [] }) {
       g = network.groups[t.group] = { label: t.label, color, layer: L.layerGroup(), visible: !hidden.has(t.group), length: 0 };
     }
     g.length += t.length;
-    const latlngs = t.pts.map((p) => [p.lat, p.lon]);
-    // Dunkler Rand unter der farbigen Linie: auf Satellitenbildern besser sichtbar
-    L.polyline(latlngs, { color: '#000', weight: 7, opacity: 0.45, interactive: false }).addTo(g.layer);
-    L.polyline(latlngs, { color: g.color, weight: 4 })
-      .bindTooltip(`${t.label} · ${t.id} · ${fmtKm(t.length)}`, { sticky: true })
-      .addTo(g.layer);
+    drawTrack(t, g);
   }
 
   network.pois = pois;
@@ -186,8 +261,52 @@ function setNetwork({ tracks, pois, roads = [] }) {
   const all = network.tracks.flatMap((t) => t.pts.map((p) => [p.lat, p.lon]))
     .concat(pois.map((p) => [p.lat, p.lon]));
   if (all.length) map.fitBounds(L.latLngBounds(all), { padding: [30, 30] });
+  updateLegend();
   updateStatusIdle();
   updateEstimate();
+}
+
+// Zeichnet eine Strecke in ihren Layer: entweder einfarbig (Layerfarbe) oder
+// abschnittsweise nach Steigung eingefärbt.
+function drawTrack(t, g) {
+  const latlngs = t.pts.map((p) => [p.lat, p.lon]);
+  const stats = climbStats(t);
+  const tip = `${t.label} · ${t.id} · ${fmtKm(t.length)}` +
+    (stats ? ` · ↑${Math.round(stats.up)} m ↓${Math.round(stats.down)} m · max ${stats.max.toFixed(0)} %` : '');
+
+  // Dunkler Rand unter der farbigen Linie: auf Satellitenbildern besser sichtbar
+  L.polyline(latlngs, { color: '#000', weight: 7, opacity: 0.45, interactive: false }).addTo(g.layer);
+
+  if (colorMode() === 'slope' && t.ele) {
+    for (const seg of slopeSegments(t)) {
+      L.polyline(seg.latlngs, { color: slopeColor(seg.pct), weight: 4, opacity: 1 })
+        .bindTooltip(`${Math.abs(seg.pct).toFixed(1)} % ${seg.pct >= 0 ? '↗' : '↘'} · ${tip}`, { sticky: true })
+        .addTo(g.layer);
+    }
+  } else {
+    L.polyline(latlngs, { color: g.color, weight: 4 })
+      .bindTooltip(tip, { sticky: true })
+      .addTo(g.layer);
+  }
+}
+
+// Nach Wechsel des Farbmodus / der Skala alle Strecken neu zeichnen
+function redrawTracks() {
+  for (const g of Object.values(network.groups)) g.layer.clearLayers();
+  for (const t of network.tracks) drawTrack(t, network.groups[t.group]);
+  updateLegend();
+}
+
+function updateLegend() {
+  const show = colorMode() === 'slope';
+  $('legend').hidden = !show;
+  $('btnColor').setAttribute('aria-pressed', show);
+  if (!show) return;
+  const max = slopeMax();
+  const stops = SLOPE_STOPS.map(([x]) => `${slopeColor(x * max)} ${x * 100}%`).join(', ');
+  $('legendBar').style.background = `linear-gradient(to right, ${stops})`;
+  $('legendMid').textContent = `${max / 2} %`;
+  $('legendMax').textContent = `≥ ${max} %`;
 }
 
 function poiMarker(poi) {
@@ -666,7 +785,16 @@ map.on('dragstart', () => {
   tracking.follow = false;
   $('btnFollow').setAttribute('aria-pressed', 'false');
 });
-$('btnPanel').onclick = () => { $('panel').hidden = false; updateStorage(); };
+$('btnColor').onclick = () => {
+  localStorage.setItem('colorMode', colorMode() === 'slope' ? 'layer' : 'slope');
+  redrawTracks();
+};
+$('slopeMax').value = localStorage.getItem('slopeMax') || '10';
+$('slopeMax').onchange = () => {
+  localStorage.setItem('slopeMax', $('slopeMax').value);
+  redrawTracks();
+};
+$('btnPanel').onclick =() => { $('panel').hidden = false; updateStorage(); };
 $('btnClose').onclick = () => { $('panel').hidden = true; };
 $('btnDownload').onclick = downloadTiles;
 $('btnAbort').onclick = () => dlAbort?.abort();

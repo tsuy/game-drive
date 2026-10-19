@@ -7,14 +7,59 @@
       <link href="https://gpx.studio"/>
     </author>
   </metadata>
-  <wpt lat="-22.056564035130535" lon="28.989802821235713">
-    <ele>604.0792136664968</ele>
+  <wpt lat="-22.120355" lon="28.995498">
+    <ele>635.0024930777872</ele>
+    <name>Southern Boundary Road</name>
+    <sym>Road</sym>
+  </wpt>
+  <wpt lat="-22.093127" lon="28.955188">
+    <ele>633</ele>
+    <name>Madiope Link Road</name>
+    <sym>Road</sym>
+  </wpt>
+  <wpt lat="-22.08599" lon="28.973504">
+    <ele>616.2432998497613</ele>
+    <name>Madiope Road</name>
+    <sym>Road</sym>
+  </wpt>
+  <wpt lat="-22.074301" lon="28.968262">
+    <ele>603.3591592398006</ele>
+    <name>Madiope Loop</name>
+    <sym>Road</sym>
+  </wpt>
+  <wpt lat="-22.05585" lon="28.990619">
+    <ele>602.9935103211961</ele>
     <name>Majali Loop</name>
     <sym>Road</sym>
   </wpt>
-  <wpt lat="-22.05222" lon="28.971115">
-    <ele>614.0105592616028</ele>
+  <wpt lat="-22.058119" lon="28.968031">
+    <ele>631.0049416489184</ele>
     <name>Majali Link Road</name>
+    <sym>Road</sym>
+  </wpt>
+  <wpt lat="-22.123375" lon="28.946319">
+    <ele>652.8690686486661</ele>
+    <name>Lost Valley Loop Road</name>
+    <sym>Road</sym>
+  </wpt>
+  <wpt lat="-22.109190166303833" lon="29.013362347101037">
+    <ele>611.033180765342</ele>
+    <name>Link Road</name>
+    <sym>Road</sym>
+  </wpt>
+  <wpt lat="-22.09922929065725" lon="28.983117611122907">
+    <ele>607.7473131826396</ele>
+    <name>Laxtions Road</name>
+    <sym>Road</sym>
+  </wpt>
+  <wpt lat="-22.094949779237737" lon="28.97966568787487">
+    <ele>606.209170397972</ele>
+    <name>Schotia Road</name>
+    <sym>Road</sym>
+  </wpt>
+  <wpt lat="-22.09468" lon="29.001117">
+    <ele>597.9172105730977</ele>
+    <name>Swiss Peak Road</name>
     <sym>Road</sym>
   </wpt>
   <trk>

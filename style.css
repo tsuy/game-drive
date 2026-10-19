@@ -139,6 +139,23 @@ button:disabled { opacity: .5; }
 }
 .hide-road-labels .road-label { display: none; }
 
+/* Steigungslegende unten links über der Massstabsleiste */
+.legend {
+  position: fixed;
+  left: 8px;
+  bottom: calc(110px + var(--safe-bottom));
+  z-index: 1000;
+  width: 170px;
+  padding: 6px 10px 4px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, .65);
+  color: #fff;
+  font-size: .75rem;
+}
+.legend-title { font-weight: 700; margin-bottom: 4px; }
+.legend-bar { height: 8px; border-radius: 4px; }
+.legend-scale { display: flex; justify-content: space-between; margin-top: 2px; opacity: .9; }
+
 .me-dot {
   width: 18px; height: 18px;
   border-radius: 50%;

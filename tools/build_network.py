@@ -11,6 +11,8 @@
   Label auf die nächste Strecke und dreht es in Strassenrichtung)
 - Zeit, Puls, Temperatur usw. werden verworfen, Koordinaten auf 6 Stellen
   (~10 cm) gerundet, aufeinanderfolgende Duplikate entfernt.
+- Höhen (<ele>) werden pro Punkt als "ele" mitgegeben (0.1 m), sofern jeder
+  Punkt der Strecke eine Höhe hat. Daraus berechnet die App die Steigung.
 
 Aufruf (im Projektordner):  python3 tools/build_network.py
 Nach jeder Änderung in gpx-source/ erneut ausführen.
@@ -52,13 +54,18 @@ def parse(path):
 
     for trk in root.findall("g:trk", NS):
         for seg in trk.findall("g:trkseg", NS):
-            coords = []
+            coords, eles = [], []
             for pt in seg.findall("g:trkpt", NS):
                 c = [round(float(pt.get("lat")), 6), round(float(pt.get("lon")), 6)]
                 if not coords or coords[-1] != c:
                     coords.append(c)
+                    ele = text(pt, "ele")
+                    eles.append(round(float(ele), 1) if ele else None)
             if len(coords) >= 2:
-                tracks.append({"id": path.stem, "group": group, "label": label, "coords": coords})
+                track = {"id": path.stem, "group": group, "label": label, "coords": coords}
+                if None not in eles:
+                    track["ele"] = eles
+                tracks.append(track)
 
     for wpt in root.findall("g:wpt", NS):
         poi = {
@@ -105,6 +112,9 @@ def main():
     points = sum(len(t["coords"]) for t in tracks)
     print(f"{len(tracks)} Tracks ({points} Punkte), {len(pois)} POIs, {len(roads)} Strassennamen "
           f"-> {TARGET.relative_to(ROOT)} ({TARGET.stat().st_size // 1024} KB)")
+    no_ele = [t["id"] for t in tracks if "ele" not in t]
+    if no_ele:
+        print("Ohne vollständige Höhendaten (keine Steigungsfarben):", ", ".join(no_ele), file=sys.stderr)
     layers = {}
     for t in tracks:
         layers[t["label"]] = layers.get(t["label"], 0) + 1
